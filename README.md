@@ -25,7 +25,7 @@ Anti-aliasing is accomplished by taking a frame-average of many different random
 ## Project Structure:
 All primary Code lives in the root directory. Each file is self-contained with the exception of the libraries.
 
-Commonly used GLSL code are placed into headers and footers to prevent code bloat
+Commonly used GLSL code segments are placed into headers and footers to prevent code bloat
 
 Libraries:
 * **Den.js** A Library that wraps WebGL and provides useful abstractions of WebGL architecture such as compiling shader programs and linking textures and attributes

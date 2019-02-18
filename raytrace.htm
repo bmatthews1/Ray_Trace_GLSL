@@ -10,7 +10,6 @@
     let buffer    = v4tex(size);
     let noise     = v4tex(size);
     let skybox    = imgtex("sky.jpg");
-    // let skybox    = imgtex("stars.jpg");
 
     let modes = ["sphere","environment", "equation"];
     let mode  = 0;
@@ -19,7 +18,7 @@
     let rotation = Matrix4.identity;
     let camera_lerp = .05;
 
-  //-- fragment shader header ----------------------------------------------- 
+  //-- fragment headers -----------------------------------------------------
     let header = `
       vec3 quadraticSolve(float a, float b, float c){
         float delta = (b*b - a*c*4.);
@@ -41,13 +40,6 @@
         }
         return z;
       }
-    `
-
-    let ray_setup = `
-      vec3 origin = (rotation*vec4(pixel + rand2() - res/2., camera*ratio, 0.)).xyz;
-      vec3 cam    = (rotation*vec4(0., 0., camera, 0.)).xyz;
-      vec3 ray    = normalize(origin - cam);
-      vec3 light  = vec3(1);
     `
 
     let main_header = `
@@ -110,7 +102,6 @@
     }
 
     let render = () => {
-      //let rotation = getRotationMatrix(params.xAngle, params.yAngle);
       noise.noise({scale:1, quality:1, speed:10});
       
       switch(mode){
@@ -120,6 +111,7 @@
       }
     }
 
+  //-- modes ----------------------------------------------------------------
     let renderSphere = () => {
       renderFrag(`
         vec3 col = vec3(.5);
@@ -192,14 +184,6 @@
     let mouseDiff = [0, 0];
     let down   = false;
 
-  //-- main loop ------------------------------------------------------------
-    autoLoop(() => {
-      if (mouseDiff.mag > .01) updateRotation();
-      render();
-      outColor.setTo(buffer).io(`o = vec4(i.rgb/i.a, 1.)`);
-      outColor.blit();
-    })
-
   //-- mouse updates --------------------------------------------------------
     onpointerdown = evt => {down = true;}
 
@@ -220,4 +204,13 @@
       setParams({camera:params.camera*amt})
       reset();
     };
+
+  //-- main loop ------------------------------------------------------------
+    autoLoop(() => {
+      if (mouseDiff.mag > .01) updateRotation();
+      render();
+      outColor.setTo(buffer).io(`o = vec4(i.rgb/i.a, 1.)`);
+      outColor.blit();
+    })
+
 </script>
