@@ -1,0 +1,22 @@
+<script src="den.js/den.js"></script>
+<script src="ben.js/ben.js"></script>
+<script>
+  Den();
+  Ben();
+
+  onPointerDown = e => {location.reload()}
+
+  let size     = [innerWidth, innerHeight]
+  let outColor = v4tex(size).io(`o = vec4(uv.x, uv.y, 1, 1)`);
+
+  let mouse = size.div(2);
+
+  autoLoop(() => {
+    outColor.blit();
+  })
+
+  onmousemove = evt => {
+    mouse = [evt.clientX, size.y - evt.clientY];
+  }
+
+</script>
