@@ -22,10 +22,10 @@ Shaders implemented with GLSL code and compiled using javascript. Main rendering
 
 Anti-aliasing is accomplished by taking a frame-average of many different random pixel samples. This allows the ray tracer to run in real-time as well as let the quality imrpove as the camera stays stationary (see **random threshhold**);
 
-Commonly used GLSL code are placed into headers and footers to prevent code bloat
-
 ## Project Structure:
 All primary Code lives in the root directory. Each file is self-contained with the exception of the libraries.
+
+Commonly used GLSL code are placed into headers and footers to prevent code bloat
 
 Libraries:
 * **Den.js** A Library that wraps WebGL and provides useful abstractions of WebGL architecture such as compiling shader programs and linking textures and attributes
