@@ -9,17 +9,31 @@
     let outColor  = v4tex(size);
     let buffer    = v4tex(size);
     let noise     = v4tex(size);
-    let skybox    = imgtex("sky.jpg");
+    let skybox    = imgtex("building.jpg");
+    //(current, stepsize, total steps)
 
-    let modes = ["sphere","environment", "equation"];
+    let modes = ["sphere", "environment", "equation", "torus", /*"mandlebulb"*/];
     let mode  = 0;
     let prevVals = modes.map(i => new Object());
 
     let rotation = Matrix4.identity;
     let camera_lerp = .05;
 
-  //-- fragment headers -----------------------------------------------------
+  //-- header ---------------------------------------------------------------
     let header = `
+      mat4 rotationMatrix(vec3 axis, float angle)
+      {
+        axis = normalize(axis);
+        float s = sin(angle);
+        float c = cos(angle);
+        float oc = 1.0 - c;
+        
+        return mat4(oc*axis.x*axis.x+c,        oc*axis.x*axis.y-axis.z*s, oc*axis.z*axis.x+axis.y*s, 0.0,
+                    oc*axis.x*axis.y+axis.z*s, oc*axis.y*axis.y+c,        oc*axis.y*axis.z-axis.x*s, 0.0,
+                    oc*axis.z*axis.x-axis.y*s, oc*axis.y*axis.z+axis.x*s, oc*axis.z*axis.z+c,        0.0,
+                    0.0, 0.0, 0.0, 1.0);
+      }
+
       vec3 quadraticSolve(float a, float b, float c){
         float delta = (b*b - a*c*4.);
 
@@ -40,24 +54,65 @@
         }
         return z;
       }
+
+      float inTorus(vec3 p, float r1, float r2){
+        vec3 p2 = pow(p, vec3(2.));
+        float r1_2 = pow(r1, 2.);
+        return pow((p2.x + p2.y + p2.z + r1_2 - pow(r2,2.)),2.) - 4.*r1_2*(p2.x + p2.y);
+      }
+
+      float sdTorus( vec3 p, vec2 t )
+      {
+        vec2 q = vec2(length(p.xz)-t.x,p.y);
+        return length(q)-t.y;
+      }
+
+      float mandleBulbDE(vec3 pos, int iterations, float bailout, float power) {
+        vec3 z = pos;
+        float dr = 1.0;
+        float r = 0.0;
+        for (int i = 0; i < iterations ; i++) {
+          r = length(z);
+          if (r>bailout) break;
+          
+          // convert to polar coordinates
+          float theta = acos(z.z/r);
+          float a = atan(z.y,z.x);
+          dr      =  pow( r, power-1.0)*power*dr + 1.0;
+          
+          // scale and rotate the point
+          float zr = pow( r,power);
+          theta = theta*power;
+          a = a*power;
+          
+          // convert back to cartesian coordinates
+          z = zr*vec3(sin(theta)*cos(a), sin(a)*sin(theta), cos(theta));
+          z+=pos;
+        }
+        return 0.5*log(r)*r/dr;
+      }
     `
 
-    let main_header = `
-      float n = thisTexel(noise).x;
-        vec4  i = thisTexel(image);
+  //-- fragments ------------------------------------------------------------
 
-        if (n > speed){
-          vec3 origin = (rotation*vec4(pixel + rand2() - res/2., camera*ratio, 0.)).xyz;
-          vec3 cam    = (rotation*vec4(0., 0., camera, 0.)).xyz;
-          vec3 ray    = normalize(origin - cam);
-          vec3 light  = vec3(1);
+    let main_header = `
+      float n = rand();
+      vec4  i = thisTexel(image);
+
+      vec3 col = vec3(0);
+
+      if (n > speed){
+        vec3 origin = (rotation*vec4(pixel + rand2() - res/2., camera*ratio, 0.)).xyz;
+        vec3 cam    = (rotation*vec4(0., 0., camera, 0.)).xyz;
+        vec3 ray    = normalize(origin - cam);
+        vec3 light  = vec3(1);
     `
 
     let main_footer = `
-          i.a += 1.;
-          outColor = vec4(i.rgb + col.rgb, i.a);
-        }
-        else outColor = i;
+        i.a += 1.;
+        outColor = vec4(i.rgb + col.rgb, i.a);
+      }
+      else outColor = i;
     `
 
   //-- pre calculations -----------------------------------------------------
@@ -80,7 +135,6 @@
   //-- rendering ------------------------------------------------------------
     let renderFrag = (inner_frag) => {
       buffer.run({
-        noise     : sampler | vec4,
         skybox    : sampler | vec4,
         camera    : uniform | float,
         ratio     : uniform | float,
@@ -95,10 +149,10 @@
 
         void main(){
           ${main_header}
-            ${inner_frag}
+          ${inner_frag}
           ${main_footer}
         }`
-      },{noise, skybox, rotation, m:mode, ...params})
+      },{skybox, rotation, m:mode, ...params})
     }
 
     let render = () => {
@@ -108,6 +162,8 @@
         case 0 : renderSphere();      break;
         case 1 : renderEnvironment(); break;
         case 2 : renderEquation();    break;
+        case 3 : renderTorus();       break;
+        case 4 : renderMandleBulb();  break;
       }
     }
 
@@ -163,12 +219,66 @@
       `)
     }
 
+    //TODO add a way to link renders and options in an addRender(name, frag) method
+
+    let renderTorus = () => {
+      renderFrag(`
+        float d = sdTorus(origin, vec2(radius, radius/2.));
+        float amt = d;
+        float steps = 0.;
+
+        float u = atan2(ray.z, ray.x)/tau - .5;
+        float v = ray.y/2. + .5;
+        vec3 col = texture(skybox, vec2(u, v)).rgb;
+
+        while (d > 1.){
+          steps++;
+          d = sdTorus(origin + ray*amt, vec2(radius, radius/2.));
+          amt += d;
+          if (steps > 50.) break;
+        }
+        if (steps < 50.){
+          vec3 p = origin + ray*amt;
+          float a = atan2(p.z, p.x);
+
+          vec3 normal = normalize(p - vec3(cos(a), 0., sin(a))*radius);
+          vec3 reflection = ray - 2.*dot(ray, normal)*normal;
+
+          u = atan2(reflection.z, reflection.x)/tau - .5;
+          v = reflection.y/2. + .5;
+          col = mix(vec3(.5),texture(skybox, vec2(u, v)).rgb, .9);
+        }
+      `)
+    }
+
+    let renderGenes2 = () => {
+
+    }
+
+    renderMandleBulb = () => {
+      renderFrag(`
+        float d = mandleBulbDE(origin, 20, 1., 8.);
+        float amt = d;
+        float steps = 0.;
+
+        while (d > 1.){
+          steps++;
+          d = mandleBulbDE(origin + ray*amt, 20, 1., 8.);
+          amt += d;
+          if (steps > 1.) break;          
+        }
+        // if (steps < 50.){
+          col = vec3(d/1000000.);
+        // }
+      `)
+    }
+
   //-- controls -------------------------------------------------------------
     addControls(
       {onChange(){reset()},name:"camera", alias:"camera distance", max:2000, val:1000},
       {onChange(){reset()},name:"ratio" , alias:"camera plane"},
       {onChange(){reset()},name:"radius"   ,max:1000, val:300},
-      {onChange(){reset()},name:"speed", alias:"random thresh", val:.2, max:.74},
+      {onChange(){reset()},name:"speed", alias:"random thresh", val:0},
 
       {name:"modes", alias:"mode",options:modes, onChange:function(){
         prevVals[mode] = {...params, rotation:rotation.times(Matrix4.identity)};
@@ -205,11 +315,15 @@
       reset();
     };
 
+    onKeyDown = evt => {
+      if (evt === "F5")  location.reload();
+    }
+
   //-- main loop ------------------------------------------------------------
     autoLoop(() => {
-      if (mouseDiff.mag > .01) updateRotation();
       render();
       outColor.setTo(buffer).io(`o = vec4(i.rgb/i.a, 1.)`);
+      if (mouseDiff.mag > .01) updateRotation();
       outColor.blit();
     })
 

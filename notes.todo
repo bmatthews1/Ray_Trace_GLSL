@@ -1,0 +1,53 @@
+  Fractal Ray Marching:
+    http://blog.hvidtfeldts.net/index.php/2011/06/distance-estimated-3d-fractals-part-i/
+    - apollonian gasket 
+
+    ☐ find name of this:
+      https://glennmarshall.wordpress.com/2013/01/15/distance-fractals/
+
+    ☐ Fractals:
+      ☐ apollonian gasket
+      ☐ mandlebulb
+      ☐ menger sponge
+      ☐ polar julian set
+
+  3D shapes:
+    - basic shapes : 
+      https://www.iquilezles.org/www/articles/distfunctions/distfunctions.htm
+
+    - super function : 
+      http://paulbourke.net/geometry/supershape/
+
+    - super ellipsoid:
+      https://en.wikipedia.org/wiki/Superellipsoid
+      https://en.wikipedia.org/wiki/Implicit_surface
+
+  TODO :
+   
+   Basics:
+     ☐ implement basic shapes in glsl (iq)
+     ☐ implement basic composit operations
+     ☐ implement normals where possible
+     ☐ implement basic translations + rotations of shapes
+   
+   Architecture:
+     ☐ create structured ray marcher
+     ☐ create model for adding fragment shaders
+     ☐ create model for generating fragment shaders from list of shapes
+
+     ☐ add modal sturcture for switching between parameter sets
+
+   Ray Tracing Features:
+     ☐ save a screenshot
+     ☐ record a video
+     ☐ side-by-side letterbox image comparison
+     ☐ overlay image comparison
+
+     ☐ sampling methods
+       ☐ normal
+       ☐ random
+       ☐ grid
+       ☐ jittered
+       ☐ "sunflower"
+
+
