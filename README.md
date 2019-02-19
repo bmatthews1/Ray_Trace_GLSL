@@ -5,8 +5,23 @@ A Repository for ray tracers done in glsl for the Vector Graphics course at UNM
 Open with the latest version of Chrome (+70.0) or Electron (reccomended)
 https://github.com/electron/electron/releases/tag/v4.0.5
 
+If using Chrome, specific CORS access needs to be granted to access local media files. If on Windows and chrome is already installed, simply launch the program with run.bat to enable CORS flags.
+
+Alternatively:
+Launch chrome directly with the flags:
+  --allow-file-access-from-files --allow-file-access --allow-cross-origin-auth-prompt
+
+On Windows these can be set in the chrome properties tab (https://superuser.com/questions/1217863/how-can-i-prevent-chrome-from-enforcing-cors-for-one-specific-file-url) or launched as command line arguments from a terminal.
+
 ## UI:
-Click and drag mouse to move camera, scroll wheel to zoom in and out.
+
+### Controls:
+- **camera** : Click and drag mouse to move camera, scroll wheel to zoom in and out.
+- **key controls**:
+  * ~ : toggles control panel and stats visibility
+  * ctrl : advances to the next mode
+  * alt+ctrl : returns to previous mode 
+
 ### Parameters:
 - **camera distance** : the distance from the camera and the origin
 - **camera plane** : the percentage along the camera distance that the pixel plane will be projected from
@@ -15,7 +30,9 @@ Click and drag mouse to move camera, scroll wheel to zoom in and out.
 - **modes** :
     * **Sphere** : renders a single sphere colored by normalized coordinate (xyz -> rgb)
     * **Environment** : renders a sphere with an environment map and performs reflection on the sphere
-    * **Equation** : maps the equation f(x,y)= 1/2(1+sin(x^2^*y^2^)) normalized to the center point
+    * **Equation** : maps the equation f(x,y) = 1/2(1+sin(x^2^ * y^2^)) normalized to the center point
+    * **torus** : same as environment but using a torus instead
+
 
 ## Implementation:
 Shaders implemented with GLSL code and compiled using javascript. Main rendering takes place in a fragment shader. Camera calculations are preformed on the cpu and passed to the shader using Matrix4x4 math to prevent overloading the GPU.

@@ -1816,6 +1816,7 @@
 
 			constructor (src) {
 				let raw = new Image();
+				raw.crossOrigin = "";
 				raw.src = src;
 				raw.onload = () => {
 					this.setData([this.raw.width,this.raw.height],this.raw,{unpackFlipY:true});

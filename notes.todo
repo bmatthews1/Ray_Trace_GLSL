@@ -1,6 +1,5 @@
   Fractal Ray Marching:
     http://blog.hvidtfeldts.net/index.php/2011/06/distance-estimated-3d-fractals-part-i/
-    - apollonian gasket 
 
     ☐ find name of this:
       https://glennmarshall.wordpress.com/2013/01/15/distance-fractals/
@@ -29,13 +28,24 @@
      ☐ implement basic composit operations
      ☐ implement normals where possible
      ☐ implement basic translations + rotations of shapes
+
+     ☐ Actual camera (FOV, near, far, ect)
    
    Architecture:
      ☐ create structured ray marcher
      ☐ create model for adding fragment shaders
-     ☐ create model for generating fragment shaders from list of shapes
+     ☐ create model for generating fragment shaders from a list of pirimitives
 
      ☐ add modal sturcture for switching between parameter sets
+
+     Mode
+       | parameters (gui)
+         | shapes
+         | environments
+         | styles (speculars)
+       | fragment headers
+         | pregenerated frags
+       |
 
    Ray Tracing Features:
      ☐ save a screenshot

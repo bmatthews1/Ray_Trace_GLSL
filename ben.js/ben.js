@@ -44,6 +44,26 @@ let Ben = (wrapper) => {
       return document.querySelectorAll('video, audio, embed, object');
     }
 
+  //-- Stats -----------------------------------------------
+    let script = document.createElement(`script`);
+    let statsLoaded = false;
+    script.onload = function(){
+      print("stats loaded");
+      let stats = new Stats();
+      window.stats = stats;
+      stats.showPanel(0);
+      stats.dom.style.left = null;
+      stats.dom.style.right = "0px";
+      document.body.appendChild(stats.dom);
+      autoLoop(() => {
+        stats.begin();
+        stats.end();
+      })
+      statsLoaded = true;
+    }
+    script.src = "ben.js/stats.min.js";
+    document.head.appendChild(script);
+
   //-- Unity Loader-----------------------------------------
     context.loadUnityApp = ({path="", onload}) => {
       print("loading unity")
@@ -600,8 +620,8 @@ let Ben = (wrapper) => {
       }
     });
 
-    context.hideControls = function(){controls.style.display = "none" }
-    context.showControls = function(){controls.style.display = "block"}
+    context.hideControls = function(){controls.style.display = "none" ; if(statsLoaded) stats.dom.style.display = "none" }
+    context.showControls = function(){controls.style.display = "block"; if(statsLoaded) stats.dom.style.display = "block"}
 
     context.getCell = (name="div") => createElement(name)._cssText("display: table-cell; margin: 3px 5px; vertical-align:middle; text-align:right;")
     context.getRow = name => createElement("div")._cssText("display: table-row;")._id(name+"_row")
@@ -609,18 +629,23 @@ let Ben = (wrapper) => {
     context.setParams = (obj) => {
       obj.for((newVal, name) => {
         let args = controlArgs[name];
-        if (!args || args.options != undefined) return;
+        if (!args) return;
         inputFn({newVal,...args});
       })
     }
 
-    let inputFn = ({newVal,name,onChange,min,max}) => {
-      let v = clamp(parseFloat(newVal), min, max);
+    let inputFn = ({newVal,name,onChange,min,max,options}) => {
+      let v = newVal;
+      if (options){
+        document.getElementById(name+ "_select").value = v;
+      } else {
+        v = clamp(parseFloat(newVal), min, max);
+        document.getElementById(name+ "_input").value = v;
+        document.getElementById(name+"_slider").value = v;
+        if (onChange) onChange(v);
+      }
       params   [name] = v;
       paramVals[name] = v;
-      document.getElementById(name+ "_input").value = v;
-      document.getElementById(name+"_slider").value = v;
-      if (onChange) onChange(v);
     };
 
     let controlArgs = {};
@@ -638,7 +663,7 @@ let Ben = (wrapper) => {
         getCell()._innerHTML(alias),
 
         //options
-        getCell("select")._id(name+"_selection").appendChildren(...options.map(o => {
+        getCell("select")._id(name+"_select").appendChildren(...options.map(o => {
           let e = createElement("option");
           e.value = o;
           e.text  = o;

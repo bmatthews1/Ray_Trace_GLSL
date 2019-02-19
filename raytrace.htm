@@ -9,7 +9,7 @@
     let outColor  = v4tex(size);
     let buffer    = v4tex(size);
     let noise     = v4tex(size);
-    let skybox    = imgtex("building.jpg");
+    let skybox    = imgtex("./media/environments/building.png");
     //(current, stepsize, total steps)
 
     let modes = ["sphere", "environment", "equation", "torus", /*"mandlebulb"*/];
@@ -315,8 +315,23 @@
       reset();
     };
 
+    let altDown = false;
     onKeyDown = evt => {
       if (evt === "F5")  location.reload();
+      if (evt === "AltLeft") altDown = true;
+      if (evt === "ControlLeft"){
+        if (altDown){
+          mode = mode-1;
+          if (mode < 0) mode = modes.length-1;
+        }
+        else mode = (mode+1)%modes.length;
+        setParams({modes:modes[mode]})
+        reset();
+      }
+    }
+
+    onKeyUp = evt => {
+      if (evt === "AltLeft") altDown = false;
     }
 
   //-- main loop ------------------------------------------------------------
