@@ -12,7 +12,7 @@
     let skybox    = imgtex("./media/environments/building.png");
     //(current, stepsize, total steps)
 
-    let modes = ["sphere", "environment", "equation", "torus", /*"mandlebulb"*/];
+    let modes = ["sphere", "environment", "equation", "torus", "sierpinski"];
     let mode  = 0;
     let prevVals = modes.map(i => new Object());
 
@@ -67,29 +67,45 @@
         return length(q)-t.y;
       }
 
-      float mandleBulbDE(vec3 pos, int iterations, float bailout, float power) {
-        vec3 z = pos;
+      float mandleBulbDE(vec3 w, int iterations) {
         float dr = 1.0;
         float r = 0.0;
+        float m = dot(w,w);
         for (int i = 0; i < iterations ; i++) {
-          r = length(z);
-          if (r>bailout) break;
-          
-          // convert to polar coordinates
-          float theta = acos(z.z/r);
-          float a = atan(z.y,z.x);
-          dr      =  pow( r, power-1.0)*power*dr + 1.0;
-          
+          // extract polar coordinates
+          float wr = sqrt(dot(w,w));
+          float wo = acos(w.y/wr);
+          float wi = atan(w.x,w.z);
+
           // scale and rotate the point
-          float zr = pow( r,power);
-          theta = theta*power;
-          a = a*power;
-          
+          wr = pow( wr, 8.0 );
+          wo = wo * 8.0;
+          wi = wi * 8.0;
+
           // convert back to cartesian coordinates
-          z = zr*vec3(sin(theta)*cos(a), sin(a)*sin(theta), cos(theta));
-          z+=pos;
+          w.x = wr * sin(wo)*sin(wi);
+          w.y = wr * cos(wo);
+          w.z = wr * sin(wo)*cos(wi);
+
+          dr = 8.0*pow(sqrt(m),7.0)*dr + 1.0;
+          r = length(w);
         }
-        return 0.5*log(r)*r/dr;
+        return r;
+      }
+
+      //http://blog.hvidtfeldts.net/index.php/2011/08/distance-estimated-3d-fractals-iii-folding-space/
+      float DE(vec3 z, int iterations, float scale)
+      {
+        float r;
+        int n = 0;
+        while (n < iterations) {
+           if(z.x+z.y<0.) z.xy = -z.yx; // fold 1
+           if(z.x+z.z<0.) z.xz = -z.zx; // fold 2
+           if(z.y+z.z<0.) z.zy = -z.yz; // fold 3  
+           z = z*scale - 300.*(scale-1.0);
+           n++;
+        }
+        return (length(z) ) * pow(scale, -float(n));
       }
     `
 
@@ -163,7 +179,7 @@
         case 1 : renderEnvironment(); break;
         case 2 : renderEquation();    break;
         case 3 : renderTorus();       break;
-        case 4 : renderMandleBulb();  break;
+        case 4 : renderSierpinski();  break;
       }
     }
 
@@ -255,21 +271,26 @@
 
     }
 
-    renderMandleBulb = () => {
+    renderSierpinski = () => {
       renderFrag(`
-        float d = mandleBulbDE(origin, 20, 1., 8.);
+        origin = cam;
+        float m = 1500.;
+        int iterations = 20;
+        float scale = 2.;
+
+        float d = DE(mod(origin, vec3(m))-vec3(m/2.), iterations, scale);
         float amt = d;
         float steps = 0.;
 
-        while (d > 1.){
+        while (d > .1){
           steps++;
-          d = mandleBulbDE(origin + ray*amt, 20, 1., 8.);
+          d = DE(mod(origin + ray*amt, vec3(m))-vec3(m/2.), iterations, scale);
           amt += d;
-          if (steps > 1.) break;          
+          if (steps > 50.) break;          
         }
-        // if (steps < 50.){
-          col = vec3(d/1000000.);
-        // }
+        if (steps < 50.){
+          col = vec3(1. - pow(steps/50., 2.));
+        }
       `)
     }
 
