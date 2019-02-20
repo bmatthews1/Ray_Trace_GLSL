@@ -20,7 +20,10 @@ On Windows these can be set in the chrome properties tab (https://superuser.com/
 - **key controls**:
   * ~ : toggles control panel and stats visibility
   * ctrl : advances to the next mode
-  * alt+ctrl : returns to previous mode 
+  * alt+ctrl : returns to previous mode
+  * space : takes a capture of the current output texture
+  * Digit1 (hold) : displays the captured texture
+  * Digit2 (hold) : displays the captured texture and the current output side-by-side
 
 ### Parameters:
 - **camera distance** : the distance from the camera and the origin
