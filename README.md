@@ -30,12 +30,18 @@ On Windows these can be set in the chrome properties tab (https://superuser.com/
 - **camera plane** : the percentage along the camera distance that the pixel plane will be projected from
 - **radius** : the size of the sphere (if there is a sphere to render)
 - **random threshhold** : the percentage chance of ignoring a pixel (set max on low powered machines)
+- **sub samples** : specifies the grid size of the sub-samples used in grid and jittered sampling methods
 - **modes** :
     * **Sphere** : renders a single sphere colored by normalized coordinate (xyz -> rgb)
     * **Environment** : renders a sphere with an environment map and performs reflection on the sphere
     * **Equation** : maps the equation f(x,y) = 1/2(1+sin(x^2^ * y^2^)) normalized to the center point
     * **torus** : same as environment but using a torus instead
-
+- **sample types** :
+    * **normal** (default) : samples 1 ray per pixel at the center of that pixel
+    * **random** : samples a random point (0-1) within the pixel
+    * **grid** : samples in a regular grid pattern based on the subSample grid size
+    * **jittered** : combination of grid and random, samples randomly within each sub-cell
+    * **sunflower** : samples along an archemdian spiral with densities closer to the center of the pixel
 
 ## Implementation:
 Shaders implemented with GLSL code and compiled using javascript. Main rendering takes place in a fragment shader. Camera calculations are preformed on the cpu and passed to the shader using Matrix4x4 math to prevent overloading the GPU.
