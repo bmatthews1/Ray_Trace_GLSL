@@ -36,7 +36,7 @@
      ☐ create model for adding fragment shaders
      ☐ create model for generating fragment shaders from a list of pirimitives
 
-     ☐ add modal sturcture for switching between parameter sets
+     ✔ add modal sturcture for switching between parameter sets @done (19-02-19 23:03)
 
      Mode
        | parameters (gui)
@@ -47,17 +47,21 @@
          | pregenerated frags
        |
 
+     Ray Tracing
+       | 
+
    Ray Tracing Features:
      ☐ save a screenshot
      ☐ record a video
-     ☐ side-by-side letterbox image comparison
-     ☐ overlay image comparison
+     
+     ✔ side-by-side letterbox image comparison @done (19-02-20 02:36)
+     ✔ overlay image comparison @done (19-02-20 02:36)
 
-     ☐ sampling methods
-       ☐ normal
-       ☐ random
-       ☐ grid
-       ☐ jittered
-       ☐ "sunflower"
+     ✔ sampling methods @done (19-02-20 04:20)
+       ✔ normal @done (19-02-20 04:20)
+       ✔ random @done (19-02-20 04:20)
+       ✔ grid @done (19-02-20 04:20)
+       ✔ jittered @done (19-02-20 04:20)
+       ✔ "sunflower" @done (19-02-20 04:20)
 
 

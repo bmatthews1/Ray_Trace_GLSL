@@ -47,6 +47,7 @@ let Ben = (wrapper) => {
   //-- Stats -----------------------------------------------
     let script = document.createElement(`script`);
     let statsLoaded = false;
+    context.loops = [];
     script.onload = function(){
       print("stats loaded");
       let stats = new Stats();
@@ -57,6 +58,7 @@ let Ben = (wrapper) => {
       document.body.appendChild(stats.dom);
       autoLoop(() => {
         stats.begin();
+        for (f of loops) f();
         stats.end();
       })
       statsLoaded = true;
@@ -651,12 +653,12 @@ let Ben = (wrapper) => {
     let controlArgs = {};
 
     let addDropdown = (arg) => {
-      let {name = arg, alias=name, onChange, options} = arg.isObject ? arg : {};
+      let {name = arg, alias=name, onChange, val, options} = arg.isObject ? arg : {};
       let args = {name, alias, onChange, options};
 
       controlArgs[name] = args;
-      params     [name] = options.first;
-      paramVals  [name] = options.first;
+      params     [name] = val || options.first;
+      paramVals  [name] = val || options.first;
 
       controls.appendChild(getRow(name).appendChildren(
         //label
