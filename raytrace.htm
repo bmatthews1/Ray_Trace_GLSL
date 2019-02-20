@@ -11,8 +11,8 @@
     let buffer    = v4tex(size);
     let noise     = v4tex(size);
     let skybox    = imgtex("./media/environments/building.png");
-    //(current, stepsize, total steps)
 
+   //-- global parameters ----------------------------------------------------
     let modes = ["sphere", "environment", "equation", "torus", "sierpinski"];
     let mode  = 0;
     let prevVals = modes.map(i => new Object());
