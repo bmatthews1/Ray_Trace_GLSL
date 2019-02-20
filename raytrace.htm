@@ -131,7 +131,7 @@
         case 1 : offset = rand2(); break;
         case 2 : offset = vec2(x, y); break;
         case 3 : offset = vec2(x, y) + rand2()/sampleGrid; break;
-        case 4 : offset = vec2(.5) + cosSin(t,t); break; 
+        case 4 : offset = cosSin(t,t)/2.; break; 
       }
 
       if (n > speed){
