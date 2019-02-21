@@ -13,6 +13,9 @@ Launch chrome directly with the flags:
 
 On Windows these can be set in the chrome properties tab (https://superuser.com/questions/1217863/how-can-i-prevent-chrome-from-enforcing-cors-for-one-specific-file-url) or launched as command line arguments from a terminal.
 
+On Linux with chromium browser:
+chromium-browser --disable-web-security --user-data-dir="[root directory]"
+
 ## UI:
 
 ### Controls:
@@ -36,6 +39,7 @@ On Windows these can be set in the chrome properties tab (https://superuser.com/
     * **Environment** : renders a sphere with an environment map and performs reflection on the sphere
     * **Equation** : maps the equation f(x,y) = 1/2(1+sin(x^2^ * y^2^)) normalized to the center point
     * **torus** : same as environment but using a torus instead
+    * **sierpinski** : renders a tiled sierpinsky triangle
 - **sample types** :
     * **normal** (default) : samples 1 ray per pixel at the center of that pixel
     * **random** : samples a random point (0-1) within the pixel

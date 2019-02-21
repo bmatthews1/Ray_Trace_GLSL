@@ -1,5 +1,6 @@
   Fractal Ray Marching:
     http://blog.hvidtfeldts.net/index.php/2011/06/distance-estimated-3d-fractals-part-i/
+    https://www.iquilezles.org/www/articles/raymarchingdf/raymarchingdf.htm
 
     ☐ find name of this:
       https://glennmarshall.wordpress.com/2013/01/15/distance-fractals/
@@ -24,10 +25,15 @@
   TODO :
    
    Basics:
-     ☐ implement basic shapes in glsl (iq)
-     ☐ implement basic composit operations
+     ✔ implement basic shapes in glsl (iq) @done (19-02-21 08:01)
+       ☐ finish rendering basic shapes
+
+     ☐ implement basic composit operations (AND OR NOT XOR)
      ☐ implement normals where possible
-     ☐ implement basic translations + rotations of shapes
+       ☐ look into derivative normals
+
+     ☐ implement basic translations + rotations + scaleing of shapes
+       ☐ normalize base shapes to [1, 1, 1] with a [0, 0, 0] origin
 
      ☐ Actual camera (FOV, near, far, ect)
    
@@ -35,6 +41,8 @@
      ☐ create structured ray marcher
      ☐ create model for adding fragment shaders
      ☐ create model for generating fragment shaders from a list of pirimitives
+
+     ☐ change gui into datgui (chrome)
 
      ✔ add modal sturcture for switching between parameter sets @done (19-02-19 23:03)
 
@@ -47,12 +55,21 @@
          | pregenerated frags
        |
 
-     Ray Tracing
+     Ray Marching
+       | number of steps in sim
+       | distance threshhold
        | 
 
    Ray Tracing Features:
      ☐ save a screenshot
      ☐ record a video
+
+     ☐ optics
+       ☐ refraction
+       ☐ reflection
+       ☐ optical density (bending towards/away from norm)
+       ☐ camera focals
+       ☐ isotropic / anisotropic filtering
      
      ✔ side-by-side letterbox image comparison @done (19-02-20 02:36)
      ✔ overlay image comparison @done (19-02-20 02:36)

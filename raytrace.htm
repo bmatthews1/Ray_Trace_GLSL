@@ -1,5 +1,6 @@
 <script src="den.js/den.js"></script>
 <script src="ben.js/ben.js"></script>
+<script src="shapes.js"></script>
 <script>
   Den();
   Ben();
@@ -13,8 +14,8 @@
     let skybox    = imgtex("./media/environments/building.png");
 
    //-- global parameters ----------------------------------------------------
-    let modes = ["sphere", "environment", "equation", "torus", "sierpinski"];
-    let mode  = 0;
+    let modes = ["sphere", "environment", "equation", "torus", "sierpinski", "shapes"];
+    let mode  = 5;
     let prevVals = modes.map(i => new Object());
 
     let sampling = 0;
@@ -37,6 +38,9 @@
                     oc*axis.z*axis.x-axis.y*s, oc*axis.y*axis.z+axis.x*s, oc*axis.z*axis.z+c,        0.0,
                     0.0, 0.0, 0.0, 1.0);
       }
+
+      float dot2( in vec2 v ) { return dot(v,v); }
+      float dot2( in vec3 v ) { return dot(v,v); }
 
       vec3 quadraticSolve(float a, float b, float c){
         float delta = (b*b - a*c*4.);
@@ -63,12 +67,6 @@
         vec3 p2 = pow(p, vec3(2.));
         float r1_2 = pow(r1, 2.);
         return pow((p2.x + p2.y + p2.z + r1_2 - pow(r2,2.)),2.) - 4.*r1_2*(p2.x + p2.y);
-      }
-
-      float sdTorus( vec3 p, vec2 t )
-      {
-        vec2 q = vec2(length(p.xz)-t.x,p.y);
-        return length(q)-t.y;
       }
 
       float mandleBulbDE(vec3 w, int iterations) {
@@ -182,6 +180,8 @@
         frag : 
         `
         ${header}
+        ${distance_estimators}
+        ${distance_operators}
 
         void main(){
           ${main_header}
@@ -200,6 +200,7 @@
         case 2 : renderEquation();    break;
         case 3 : renderTorus();       break;
         case 4 : renderSierpinski();  break;
+        case 5 : renderShapes();      break;
       }
     }
 
@@ -287,10 +288,6 @@
       `)
     }
 
-    let renderGenes2 = () => {
-
-    }
-
     renderSierpinski = () => {
       renderFrag(`
         origin = cam;
@@ -310,6 +307,37 @@
         }
         if (steps < 50.){
           col = vec3(1. - pow(steps/50., 2.));
+        }
+      `)
+    }
+
+    let renderShapes = () => {
+      reset();
+      renderFrag(`
+        float d = 1.;
+        float amt = d;
+        float steps = 0.;
+        
+        int t = int(time/2.)%6;
+
+        while (d > .1){
+          steps++;
+          vec3 p = (origin + ray*amt);
+
+          switch(t){
+            case 0 : d = sdSphere(p, radius); break;
+            case 1 : d = sdBox(p, vec3(radius*.5)); break;
+            case 2 : d = sdRoundBox(p, vec3(radius*.5), radius/4.); break;
+            case 3 : d = sdTorus(p, vec2(radius, radius/2.)); break;
+            case 4 : d = sdCylinder(p, vec2(radius)); break;
+            case 5 : d = sdCone(p, radius, radius); break;
+          }
+
+          amt += d;
+          if (steps > 50.) break;          
+        }
+        if (steps < 50.){
+          col = vec3(1. - steps/50.);
         }
       `)
     }
