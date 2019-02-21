@@ -39,7 +39,8 @@ chromium-browser --disable-web-security --user-data-dir="[root directory]"
     * **Environment** : renders a sphere with an environment map and performs reflection on the sphere
     * **Equation** : maps the equation f(x,y) = 1/2(1+sin(x^2^ * y^2^)) normalized to the center point
     * **torus** : same as environment but using a torus instead
-    * **sierpinski** : renders a tiled sierpinsky triangle
+    * **sierpinski** : renders a tiled sierpinsky triangle using a distance function
+    * **shapes** : renders some basic shapes using distance estimator primitives
 - **sample types** :
     * **normal** (default) : samples 1 ray per pixel at the center of that pixel
     * **random** : samples a random point (0-1) within the pixel
