@@ -27,6 +27,9 @@ chromium-browser --disable-web-security --user-data-dir="[root directory]"
   * space : takes a capture of the current output texture
   * Digit1 (hold) : displays the captured texture
   * Digit2 (hold) : displays the captured texture and the current output side-by-side
+- **window controls**
+  * f5 : refreshes the window
+  * f11: fullscreens the window
 
 ### Parameters:
 - **camera distance** : the distance from the camera and the origin
