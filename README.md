@@ -34,6 +34,7 @@ chromium-browser --disable-web-security --user-data-dir="[root directory]"
 - **radius** : the size of the sphere (if there is a sphere to render)
 - **random threshhold** : the percentage chance of ignoring a pixel (set max on low powered machines)
 - **sub samples** : specifies the grid size of the sub-samples used in grid and jittered sampling methods
+- **line width** : specifies the line width for line sampling modes
 - **modes** :
     * **Sphere** : renders a single sphere colored by normalized coordinate (xyz -> rgb)
     * **Environment** : renders a sphere with an environment map and performs reflection on the sphere
@@ -41,6 +42,8 @@ chromium-browser --disable-web-security --user-data-dir="[root directory]"
     * **torus** : same as environment but using a torus instead
     * **sierpinski** : renders a tiled sierpinsky triangle using a distance function
     * **shapes** : renders some basic shapes using distance estimator primitives
+    * **grid** : renders a black and white checkered grid on the xz axis
+    * **grid2** : renders a top down view of a grid at different line widths
 - **sample types** :
     * **normal** (default) : samples 1 ray per pixel at the center of that pixel
     * **random** : samples a random point (0-1) within the pixel

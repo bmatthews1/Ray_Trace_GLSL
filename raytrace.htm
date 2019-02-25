@@ -14,8 +14,8 @@
     let skybox    = imgtex("./media/environments/building.png");
 
    //-- global parameters ----------------------------------------------------
-    let modes = ["sphere", "environment", "equation", "torus", "sierpinski", "shapes"];
-    let mode  = 5;
+    let modes = ["sphere", "environment", "equation", "torus", "sierpinski", "shapes", "grid", "grid2"];
+    let mode  = 0;
     let prevVals = modes.map(i => new Object());
 
     let sampling = 0;
@@ -176,6 +176,7 @@
         sampleGrid : uniform | float,
         speed      : uniform | float,
         rotation   : uniform | mat4,
+        width      : uniform | float,
 
         frag : 
         `
@@ -201,6 +202,8 @@
         case 3 : renderTorus();       break;
         case 4 : renderSierpinski();  break;
         case 5 : renderShapes();      break;
+        case 6 : renderGrid();        break;
+        case 7 : renderLines();       break;
       }
     }
 
@@ -250,10 +253,39 @@
 
     let renderEquation = () => {
       renderFrag(`
-        origin = vec3(pixel+rand2()-res/2., camera)/50.;
+        origin = vec3(pixel + offset - res/2., camera)/50.;
         ray    = normalize(origin);
         vec3 col = vec3(eqSolve(origin, ray, 1));
       `)
+    }
+
+    let renderGrid = () => {
+      renderFrag(`
+        float y = ray.y;
+        float d = -(origin.y+10000.)/y;
+
+        if (d > 0.){
+          vec3 p = (origin+ray*d)/10000.;
+          col = vec3(mod(p.x, 2.) < 1. ^^ mod(p.z, 2.) < 1.);
+        }
+      `)
+    }
+
+    let renderLines = () => {
+      renderFrag(`
+        origin  = vec3(pixel + offset - res/2., camera)/50.;
+        origin  = origin.xzy;
+        origin.y = -origin.y;
+        ray     = normalize(origin);
+
+        float y = ray.y;
+        float d = -(origin.y+1000000.)/y;
+
+        if (d > 0.){
+          vec3 p = (origin+ray*d)/10000.;
+          col = vec3(mod(p.x, 2.) < width/9. || mod(p.z, 2.) < width/9.);
+        }
+      `);
     }
 
     //TODO add a way to link renders and options in an addRender(name, frag) method
@@ -333,11 +365,16 @@
             case 5 : d = sdCone(p, radius, radius); break;
           }
 
+          d = opNOT(sdCylinder(p, vec2(radius/2., radius*2.)), d);
+
           amt += d;
           if (steps > 50.) break;          
         }
         if (steps < 50.){
           col = vec3(1. - steps/50.);
+          // float h = (origin + ray*amt).x;
+          // h = mod(h/100., 1.);
+          // col = hsv(h, 1., 1.).rgb;
         }
       `)
     }
@@ -348,7 +385,8 @@
       {onChange(){reset()},name:"ratio" , alias:"camera plane"},
       {onChange(){reset()},name:"radius", max:1000, val:300},
       {onChange(){reset()},name:"speed" , alias:"random thresh", val:0, max:.74},
-      {name:"sampleGrid", alias:"sub samples", val:5, max:20, step:1},
+      {onChange(){reset()},name:"sampleGrid", alias:"sub samples", val:5, max:20, step:1},
+      {onChange(){reset()},name:"width" , alias:"line width"   , val:.5, max:5},
 
       {name:"modes", alias:"mode",options:modes, onChange:function(){
         prevVals[mode] = {...params, rotation:rotation.times(Matrix4.identity)};

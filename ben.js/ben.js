@@ -1,4 +1,4 @@
-let Ben = (wrapper) => {
+let Ben = (relative_path="./") => {
 
   let context = {};
 
@@ -26,7 +26,7 @@ let Ben = (wrapper) => {
       howlerInitialized = true;
       preloads.for(i => loadSound(i));
     }
-    howler.src = "ben.js/howler.min.js";
+    howler.src = relative_path + "ben.js/howler.min.js";
     document.head.appendChild(howler);
 
     context.loadSound = function(options){
@@ -63,7 +63,7 @@ let Ben = (wrapper) => {
       })
       statsLoaded = true;
     }
-    script.src = "ben.js/stats.min.js";
+    script.src = relative_path + "ben.js/stats.min.js";
     document.head.appendChild(script);
 
   //-- Unity Loader-----------------------------------------
@@ -150,7 +150,7 @@ let Ben = (wrapper) => {
       "plasma","prism","purple_mm","rainbow","seismic","spectral","spring","summer","terrain","viridis","winter",
     ].map(i => i.toLowerCase().replace(/ /g,"_").replace("-", "_"));
 
-    context.colormaps = new ImageTexture("./ben.js/colormaps.png");
+    context.colormaps = new ImageTexture(relative_path + "ben.js/colormaps.png");
 
     Texture.prototype.colormap = function(index = colormap||0){
       if (typeof index === `string` || index instanceof String){

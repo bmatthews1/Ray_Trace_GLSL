@@ -28,8 +28,8 @@
      ✔ implement basic shapes in glsl (iq) @done (19-02-21 08:01)
        ☐ finish rendering basic shapes
 
-     ☐ implement basic composit operations (AND OR NOT XOR)
-     ☐ implement normals where possible
+     ✔ implement basic composit operations (AND OR NOT XOR) @done (19-02-22 06:05)
+     ☐ normals
        ☐ look into derivative normals
 
      ☐ implement basic translations + rotations + scaleing of shapes
@@ -43,6 +43,8 @@
      ☐ create model for generating fragment shaders from a list of pirimitives
 
      ☐ change gui into datgui (chrome)
+       ☐ migrate current tools to datgui
+       ☐ webpage mockup
 
      ✔ add modal sturcture for switching between parameter sets @done (19-02-19 23:03)
 

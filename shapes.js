@@ -2,6 +2,11 @@ class Shape{
   constructor(explicit, implicit, position, rotation, scale){
     this.explicit = explicit;
     this.implicit = implicit;
+
+    this.mat = Matrix4.identity().translate(...position).scale(...scale).rotate(...rotation);
+    
+    let matString = `` + this.mat.flat().toString();
+    this.project = `p = mat4(${matString})*p;`;
   }
 }
 
