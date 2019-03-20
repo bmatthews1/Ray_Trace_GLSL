@@ -10,6 +10,11 @@ class Shape{
   }
 }
 
+//exact or non-exact
+//explicit: can return an exact position and normal
+//implicit: needs to be ray traced and udlrfb for normal
+
+
 //Matrix4x4 operations (can be baked into shader)
 //translate
 //scale

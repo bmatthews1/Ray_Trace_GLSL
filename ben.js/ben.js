@@ -717,6 +717,47 @@ let Ben = (relative_path="./") => {
 
     context.addControls = function(...args){args.for(i => addControl(i))}
 
+  //-- Screenshots/Recording -------------------------------
+    //TODO recording icon/button
+    //https://codepen.io/aeewhite/pen/BjzbOL?editors=1010
+    let recorder;
+    let chunks = [];
+
+    context.record = function(){
+      if (DEBUG.functions) print("recording");
+      chunks.length = 0;
+      let stream = document.querySelector('canvas').captureStream(30);
+      recorder = new MediaRecorder(stream);
+      recorder.ondataavailable = e => {
+        if (e.data.size) {
+          chunks.push(e.data);
+        }
+      };
+      recorder.onstop = exportVideo;
+
+      recorder.start();
+    }
+
+    context.stopRecording = function(){
+      if (DEBUG.functions) print("stopping recorder")
+      if (recorder) recorder.stop();
+    }
+
+    context.exportVideo = function(e){
+      if (DEBUG.functions) print("exporting");
+      var blob = new Blob(chunks);
+      saveAs(blob, "vCanvas_" + randKey(8) + ".mp4");
+    }
+
+    context.screenShot = function(){
+      let lnk = document.createElement('a');
+      let canvas = document.querySelector('canvas');
+      lnk.download = "canvas.png";
+      lnk.href = canvas.toDataURL();
+      window.location.hrf = lnk.href;
+    }
+
+
   //-- Kinect Extension ------------------------------------
     let kinects = 0;
     context.Nect = class{

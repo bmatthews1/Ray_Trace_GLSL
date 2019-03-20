@@ -1,0 +1,20 @@
+Perspective projection structure:
+  camera:
+    - origin
+    - direction
+    - near
+    - far
+    - fov
+      - x degrees
+      - y degrees
+
+  controls:
+    - arcball orbit controls
+      - z locked
+    - udlrfb
+      -wasd
+        - forward, left, back, right,
+      -qe
+        - up, down
+
+   
