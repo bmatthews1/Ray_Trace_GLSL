@@ -65,10 +65,10 @@
   }
 
   addControls(
-    {name:"fov"     , min:30  , max:180  , val:45   , onChange:reset},
-    {name:"near"    , min:0   , max:1000 , val:10   , onChange:reset},
-    {name:"far"     , min:1000, max:10000, val:10000, onChange:reset},
-    {name:"rotation", min:0   , max:6.28  , val:0   , onChange:reset ,alias:"roll"},
+    {name:"fov"     , min:30  , max:180   , val:45   , onChange:reset},
+    {name:"near"    , min:0   , max:1000  , val:10   , onChange:reset},
+    {name:"far"     , min:1000, max:100000           , onChange:reset},
+    {name:"rotation", min:0   , max:6.28  , val:0    , onChange:reset ,alias:"roll"},
   )
   showControls();
 
@@ -84,6 +84,9 @@
       dir : uniform | vec3,
       orientation : uniform | float,
       distance    : uniform | float,
+
+      near : uniform | float,
+      far  : uniform | float,
 
       frag : `
 
@@ -174,10 +177,15 @@
       }
 
       const vec3 tris[3] = vec3[3](
-        vec3(0, 400, 50),
-        vec3(-100, 100, 0),
-        vec3(-400, 500, 100)
-      ); 
+        vec3(0, 350, 50),
+        vec3(-100, 100, -100),
+        vec3(-300, 400, 100)
+      );
+
+      const vec3 sphere = vec3(0, 300, 0);
+      const float radius = 100.;
+
+      const vec3 light  = normalize(vec3(-1, 1, -1));
 
       void main(){
         vec3 origin = eye;
@@ -188,21 +196,22 @@
 
         vec4 i = thisTexel(image);
 
-        float radius = 100.;
         vec3 col = vec3(0.);
 
-        float d  = SphereHit(origin, ray, vec3(0, 300, 0), radius);
+        float d  = SphereHit(origin, ray, sphere, radius);
         float d2 = PlaneHit (origin, ray, vec3(0, 0, 0), vec3(0, -1, 0));
         float d3 = TriangleHit(origin, ray, tris, d);
 
-        if (d > 0. && d < d2 && d < d3){
+        if (d > 0. && d < d2 && d < d3 && d > near && d < far){
           vec3 p = origin + ray*d;
-          col = vec3(p/radius);
+          vec3 normal = normalize(p-sphere);
+          float l = dot(normal, light)*.5 + .5;
+          col = vec3(.5, .5, 0)*l;
         }
-        else if (d3 > 0. && d3 < d2){
-          col = vec3(1, .5, 0);
+        else if (d3 > 0. && d3 < d2 && d3 > near && d3 < far){
+          col = vec3(0, .5, .5);
         }
-        else if (d2 > 0.&& d2 < 1e10){
+        else if (d2 > 0. && d2 > near && d2 < far){
           vec3 p = (origin + vec3(1e6) + ray*d2)/100.;
           
           ivec3 f = ivec3(p);
@@ -212,7 +221,7 @@
         outColor = vec4(i.rgb+col, i.a+1.);
       }
       `
-    },{eye, dir:effectiveDir, orientation, distance});
+    },{eye, dir:effectiveDir, orientation, distance, ...params});
 
     outColor.setTo(avg).io(`o = vec4(i.rgb/i.a, 1.)`);
     outColor.blit();
