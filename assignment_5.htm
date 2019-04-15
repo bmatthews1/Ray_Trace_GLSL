@@ -14,9 +14,12 @@
 
   let size     = [innerWidth, innerHeight]
   let outColor = v4tex(size);
+  let diagram  = c2tex(size);
   let avg      = v4tex(size);
 
-  let eye          = [0, 300, -1000];
+  let showDiagram = true;
+
+  let eye          = [0, 300, -4150];
   let dir          = [0, 0, 1];
   let effectiveDir = [0, 0, 1];
   let orientation = 0;
@@ -60,16 +63,78 @@
     effectiveDir = matrixRotate(rotation, dir);
   }
 
+  let diagramSize = 400;
+  let updateDiagram = () => {
+    diagram.draw(gfx => {
+      gfx.clear();
+
+      gfx.rgb(0, .5);
+      gfx.fillRect(0, size.y-400, 600, 400);
+      
+      let total = distance + params.focalDist;
+      let o = tan((params.fov*pi/180)/2)*diagramSize*(distance/total);
+
+      let p1 = diagramSize*distance/total
+      let p2 = diagramSize*(distance + params.focalDist*params.lenseRatio)/total;
+
+      let lenseHeight = diagramSize*params.lenseRadius/total;
+
+      gfx.setFont("Arial", 15);
+      gfx.pushPop(() => {
+        gfx.translate(20, size.y-200);
+
+        gfx.rgb(1).fillText("scale: " + floor(total), -20, -200)
+
+        //lense lines
+        gfx.rgb(0, 0, 1);
+        gfx.line(p1,-o, ...[p1,-o].lerpTo([p2, -lenseHeight], 3));
+        gfx.line(p1, o, ...[p1, o].lerpTo([p2, -lenseHeight], 3));
+        gfx.line(p1,-o, ...[p1,-o].lerpTo([p2,  lenseHeight], 3));
+        gfx.line(p1, o, ...[p1, o].lerpTo([p2,  lenseHeight], 3));
+
+        //mid line
+        gfx.rgb(0, 1, 0);
+        gfx.line(0, 0, diagramSize, 0);
+
+        //eye
+        gfx.fillCircle(0, 0, 3);
+        gfx.fillTextTC("eye", 0, -30);
+
+        //fov
+        gfx.strokeWidth(3).line(p1, o, p1, -o);
+        gfx.strokeWidth(1).line( 0, 0, p1,  o);
+        gfx.line( 0, 0, p1, -o);
+        gfx.fillTextTC("image plane", p1, -o - 20)
+        gfx.rgb(1).fillTextTC("fov " + floor(params.fov) + "°", 20, 40);
+
+        //lense
+        gfx.rgb(1).line(p1, 5, p2-3, 5);
+        gfx.fillTextTC(params.lenseRatio, p1+ (p2-p1)/2, 10);
+        gfx.rgb(0, 1, 0).strokeRect(p2-3, -lenseHeight, 6, lenseHeight*2);
+        gfx.fillTextTC("lense", p2, -lenseHeight-20);
+
+
+        //focal place
+        gfx.line(diagramSize, o, diagramSize, -o);
+        gfx.fillTextTC("focal plane", diagramSize, -o - 20);
+
+      });
+    })
+  }
+
   let reset = () => {
       avg.clear();
   }
 
   addControls(
-    {name:"fov"     , min:30  , max:180   , val:45   , onChange:reset},
-    {name:"near"    , min:0   , max:1000  , val:10   , onChange:reset},
-    {name:"far"     , min:1000, max:100000           , onChange:reset},
-    {name:"rotation", min:0   , max:6.28  , val:0    , onChange:reset ,alias:"roll"},
-  )
+    {name:"fov"        , min:30  , max:180   , val:45   , onChange:reset},
+    {name:"focalDist"  , min:0   , max:10000 , val:1820 , onChange:reset, step:10},
+    {name:"lenseRatio" , min:0   , max:1     , val:.41  , onChange:reset},
+    {name:"lenseRadius", min:1   , max:600   , val:150  , onChange:reset},
+    {name:"near"       , min:0   , max:1000  , val:10   , onChange:reset},
+    {name:"far"        , min:1000, max:100000           , onChange:reset},
+    {name:"rotation"   , min:0   , max:6.28  , val:0    , onChange:reset ,alias:"roll"},
+  );
   showControls();
 
   autoLoop(() => {
@@ -85,8 +150,12 @@
       orientation : uniform | float,
       distance    : uniform | float,
 
-      near : uniform | float,
-      far  : uniform | float,
+      near        : uniform | float,
+      far         : uniform | float,
+
+      focalDist   : uniform | float,
+      lenseRatio  : uniform | float,
+      lenseRadius : uniform | float,
 
       frag : `
 
@@ -186,34 +255,44 @@
         vec3(-300, 400, 100)
       );
 
-      const vec3 sphere = vec3(0, 300, 0);
+      const vec3  sphere = vec3(0, 300, 0);
       const float radius = 100.;
 
       const vec3 light  = normalize(vec3(-1, 1, -1));
 
       void main(){
-        vec3 origin = eye;
-        vec2 offset = rand2();
-        vec3 ray    = normalize(vec3((pixel+offset)-res/2., distance));
+        vec3 origin     = eye;
+        vec2 jitter     = rand2();
+        vec3 imagePoint = vec3(pixel-res/2. + jitter, distance);
+        vec3 ray        = normalize(imagePoint);
+        vec3 focalPoint = (focalDist/ray.z)*ray + imagePoint;
+        vec3 lensePoint = vec3(cosSin(rand()*tau, rand()*lenseRadius), distance+focalDist*lenseRatio);
+
+        ray    = normalize(focalPoint-lensePoint);
+
         mat3 lookat = calcLookAtMatrix(vec3(0), normalize(dir), orientation);
-        ray = lookat*ray;
+        ray     = lookat*ray;
+        origin += lookat*(lensePoint);
 
         vec4 i = thisTexel(image);
 
         vec3 col = vec3(0.);
 
-        float d  = SphereHit(origin, ray, sphere, radius);
+        float d  = 0.;
+        float d1 = SphereHit(origin, ray, sphere, radius);
         float d2 = PlaneHit (origin, ray, vec3(0, 0, 0), vec3(0, -1, 0));
         float d3 = TriangleHit(origin, ray, tris, d);
 
-        if (d > 0. && d < d2 && d < d3 && d > near && d < far){
-          vec3 p = origin + ray*d;
+        if (d1 > 0. && d1 < d2 && d1 < d3 && d1 > near && d1 < far){
+          vec3 p = origin + ray*d1;
           vec3 normal = normalize(p-sphere);
           float l = dot(normal, light)*.5 + .5;
           col = vec3(.5, .5, 0)*l;
+          d = d1;
         }
         else if (d3 > 0. && d3 < d2 && d3 > near && d3 < far){
           col = vec3(0, .5, .5);
+          d = d3;
         }
         else if (d2 > 0. && d2 > near && d2 < far){
           vec3 p = (origin + ray*d2)/100.;
@@ -221,6 +300,7 @@
           if (p.x > 0. && p.z > 0.) p.z += 1.;
           ivec3 f = ivec3(p);
           col = vec3((f.x+f.z)%2 == 0 ? .3 : 1.);
+          d = d2;
         }
 
         outColor = vec4(i.rgb+col, i.a+1.);
@@ -229,6 +309,12 @@
     },{eye, dir:effectiveDir, orientation, distance, ...params});
 
     outColor.setTo(avg).io(`o = vec4(i.rgb/i.a, 1.)`);
+    
+    if (showDiagram){
+      updateDiagram();
+      outColor.srcOver(diagram);
+    }
+    
     outColor.blit();
     mouseDiff = [0, 0];
   })
@@ -241,7 +327,13 @@
 
     let locked = false;
 
-    onLeftDown  = evt => {down = true;}
+    onLeftDown  = evt => {
+      down = true;
+      if (locked){
+        document.exitPointerLock();
+        locked = false;
+      }
+    }
     onRightDown = evt => {location.reload()}
 
     onpointermove = evt => {
@@ -281,6 +373,10 @@
         else mode = (mode+1)%modes.length;
         setParams({modes:modes[mode]})
         reset();
+      }
+
+      if (evt === "Backquote"){
+        showDiagram ^= true;
       }
 
       if (evt === "Escape"){
