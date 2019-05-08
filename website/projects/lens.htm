@@ -1,0 +1,408 @@
+<script src="den.js/den.js"></script>
+<script src="ben.js/ben.js"></script>
+<script>
+  Den();
+  Ben();
+
+  let canvas = document.querySelector("canvas");
+  canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
+  document.exitPointerLock  = document.exitPointerLock  || document.mozExitPointerLock;
+  canvas.onclick = function() {
+    canvas.requestPointerLock();
+    locked = true;
+  };
+
+  let size     = [innerWidth, innerHeight]
+  let outColor = v4tex(size);
+  let diagram  = c2tex(size);
+  let avg      = v4tex(size);
+
+  let showDiagram = true;
+
+  let eye          = [0, 300, -4150];
+  let dir          = [0, 0, 1];
+  let effectiveDir = [0, 0, 1];
+  let orientation = 0;
+  let distance    = 300;
+  let fov         = 30;
+
+  let rotX = 0, goalRotX = 0;
+  let rotY = 0, goalRotY = 0;
+
+  let speed = 10;
+
+  let rotation;
+
+  let matrixRotate = function(mat, vec){
+    let rot = [
+      mat[0][0]*vec[0] + mat[0][1]*vec[1] + mat[0][2]*vec[2],
+      mat[1][0]*vec[0] + mat[1][1]*vec[1] + mat[1][2]*vec[2],
+      mat[2][0]*vec[0] + mat[2][1]*vec[1] + mat[2][2]*vec[2],
+    ]
+    return rot;
+  }
+
+  let getRotationMatrix = (xAngle, yAngle) => {
+    let rotX =  Matrix4.identity.rotate(yAngle, 1, 0, 0);
+    let rotY =  Matrix4.identity.rotate(xAngle, 0, 1, 0);
+    return rotX.times(rotY);
+  }
+
+  let updateVals = () =>{
+    let o = size.x/2;
+    let a = (params.fov*pi/180)/2
+    distance     = o/tan(a);
+
+
+    orientation  = params.rotation;
+    
+    rotX = lerp(rotX, goalRotX, .5);
+    rotY = lerp(rotY, goalRotY, .5);
+
+    rotation     = getRotationMatrix(rotX, rotY);
+    effectiveDir = matrixRotate(rotation, dir);
+  }
+
+  let diagramSize = 400;
+  let updateDiagram = () => {
+    diagram.draw(gfx => {
+      gfx.clear();
+
+      gfx.rgb(0, .5);
+      gfx.fillRect(0, size.y-400, 600, 400);
+      
+      let total = distance + params.focalDist;
+      let o = tan((params.fov*pi/180)/2)*diagramSize*(distance/total);
+
+      let p1 = diagramSize*distance/total
+      let p2 = diagramSize*(distance + params.focalDist*params.lenseRatio)/total;
+
+      let lenseHeight = diagramSize*params.lenseRadius/total;
+
+      gfx.setFont("Arial", 15);
+      gfx.pushPop(() => {
+        gfx.translate(20, size.y-200);
+
+        gfx.rgb(1).fillText("scale: " + floor(total), -20, -200)
+
+        //lense lines
+        gfx.rgb(0, 0, 1);
+        gfx.line(p1,-o, ...[p1,-o].lerpTo([p2, -lenseHeight], 3));
+        gfx.line(p1, o, ...[p1, o].lerpTo([p2, -lenseHeight], 3));
+        gfx.line(p1,-o, ...[p1,-o].lerpTo([p2,  lenseHeight], 3));
+        gfx.line(p1, o, ...[p1, o].lerpTo([p2,  lenseHeight], 3));
+
+        //mid line
+        gfx.rgb(0, 1, 0);
+        gfx.line(0, 0, diagramSize, 0);
+
+        //eye
+        gfx.fillCircle(0, 0, 3);
+        gfx.fillTextTC("eye", 0, -30);
+
+        //fov
+        gfx.strokeWidth(3).line(p1, o, p1, -o);
+        gfx.strokeWidth(1).line( 0, 0, p1,  o);
+        gfx.line( 0, 0, p1, -o);
+        gfx.fillTextTC("image plane", p1, -o - 20)
+        gfx.rgb(1).fillTextTC("fov " + floor(params.fov) + "°", 20, 40);
+
+        //lense
+        gfx.rgb(1).line(p1, 5, p2-3, 5);
+        gfx.fillTextTC(params.lenseRatio, p1+ (p2-p1)/2, 10);
+        gfx.rgb(0, 1, 0).strokeRect(p2-3, -lenseHeight, 6, lenseHeight*2);
+        gfx.fillTextTC("lense", p2, -lenseHeight-20);
+
+
+        //focal place
+        gfx.line(diagramSize, o, diagramSize, -o);
+        gfx.fillTextTC("focal plane", diagramSize, -o - 20);
+
+      });
+    })
+  }
+
+  let reset = () => {
+      avg.clear();
+  }
+
+  addControls(
+    {name:"fov"        , min:30  , max:180   , val:45   , onChange:reset},
+    {name:"focalDist"  , min:0   , max:10000 , val:1820 , onChange:reset, step:10},
+    {name:"lenseRatio" , min:0   , max:1     , val:.41  , onChange:reset},
+    {name:"lenseRadius", min:1   , max:600   , val:150  , onChange:reset},
+    {name:"near"       , min:0   , max:1000  , val:10   , onChange:reset},
+    {name:"far"        , min:1000, max:100000           , onChange:reset},
+    {name:"rotation"   , min:0   , max:6.28  , val:0    , onChange:reset ,alias:"roll"},
+  );
+  showControls();
+
+  autoLoop(() => {
+    updateVals();
+    let m = matrixRotate(rotation, movement);
+    eye = eye.plus(m.times(speed));
+
+    if (m.mag > 1e-4 || [rotX-goalRotX,rotY-goalRotY].mag > 1e-4) reset();
+
+    avg.run({
+      eye : uniform | vec3,
+      dir : uniform | vec3,
+      orientation : uniform | float,
+      distance    : uniform | float,
+
+      near        : uniform | float,
+      far         : uniform | float,
+
+      focalDist   : uniform | float,
+      lenseRatio  : uniform | float,
+      lenseRadius : uniform | float,
+
+      frag : `
+
+      //https://github.com/glslify/glsl-look-at/blob/gh-pages/index.glsl
+      mat3 calcLookAtMatrix(vec3 origin, vec3 target, float roll) {
+        vec3 rr = vec3(sin(roll), cos(roll), 0.0);
+        vec3 ww = normalize(target - origin);
+        vec3 uu = normalize(cross(ww, rr));
+        vec3 vv = normalize(cross(uu, ww));
+
+        return mat3(uu, vv, ww);
+      }
+
+      //http://fhtr.blogspot.com/2013/12/opus-2-glsl-ray-tracing-tutorial.html
+      float SphereHit(vec3 origin, vec3 ray, vec3 center, float radius)
+      {
+        vec3 rc = origin-center;
+        float c = dot(rc, rc) - (radius*radius);
+        float b = dot(ray, rc);
+        float d = b*b - c;
+        float t = -b - sqrt(abs(d));
+
+        if (d < 0.0 || t < 0.0) {
+          return -1.;
+        } else {
+          return t;
+        }
+      }
+
+      //https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-plane-and-ray-disk-intersection
+      float PlaneHit(vec3 origin, vec3 ray, vec3 center, vec3 normal){
+        float denom = dot(normal, ray);
+        float t = 1e10;
+        if (denom > 1e-6){
+          vec3 p = center-origin;
+          t = dot(p, normal)/denom;
+        }
+        return t;
+      }
+
+      //http://undernones.blogspot.com/2010/12/gpu-ray-tracing-with-glsl.html
+      float TriangleHit(vec3 orig, vec3 dir, vec3 vertices[3], float lastHitT)
+      {
+          const float INFINITY = 1e10;
+          vec3 u, v, n; // triangle vectors
+          vec3 w0, w;  // ray vectors
+          float r, a, b; // params to calc ray-plane intersect
+
+          // get triangle edge vectors and plane normal
+          u = vertices[1] - vertices[0];
+          v = vertices[2] - vertices[0];
+          n = cross(u, v);
+
+          w0 = orig - vertices[0];
+          a = -dot(n, w0);
+          b = dot(n, dir);
+          if (abs(b) < 1e-5)
+          {
+              // ray is parallel to triangle plane, and thus can never intersect.
+              return INFINITY;
+          }
+
+          // get intersect point of ray with triangle plane
+          r = a / b;
+          if (r < 0.0)
+              return INFINITY; // ray goes away from triangle.
+
+          vec3 I = orig + r * dir;
+          float uu, uv, vv, wu, wv, D;
+          uu = dot(u, u);
+          uv = dot(u, v);
+          vv = dot(v, v);
+          w = I - vertices[0];
+          wu = dot(w, u);
+          wv = dot(w, v);
+          D = uv * uv - uu * vv;
+
+          // get and test parametric coords
+          float s, t;
+          s = (uv * wv - vv * wu) / D;
+          if (s < 0.0 || s > 1.0)
+              return INFINITY;
+          t = (uv * wu - uu * wv) / D;
+          if (t < 0.0 || (s + t) > 1.0)
+              return INFINITY;
+
+          return (r > 1e-5) ? r : INFINITY;
+      }
+
+      int imod(int n, int m){
+        return ((n%m)+m)%m;
+      }
+
+      const vec3 tris[3] = vec3[3](
+        vec3(0, 350, 50),
+        vec3(-100, 100, -100),
+        vec3(-300, 400, 100)
+      );
+
+      const vec3  sphere = vec3(0, 300, 0);
+      const float radius = 100.;
+
+      const vec3 light  = normalize(vec3(-1, 1, -1));
+
+      void main(){
+        vec3 origin     = eye;
+        vec2 jitter     = rand2();
+        vec3 imagePoint = vec3(pixel-res/2. + jitter, distance);
+        vec3 ray        = normalize(imagePoint);
+        vec3 focalPoint = (focalDist/ray.z)*ray + imagePoint;
+        vec3 lensePoint = vec3(cosSin(rand()*tau, rand()*lenseRadius), distance+focalDist*lenseRatio);
+
+        ray    = normalize(focalPoint-lensePoint);
+
+        mat3 lookat = calcLookAtMatrix(vec3(0), normalize(dir), orientation);
+        ray     = lookat*ray;
+        origin += lookat*(lensePoint);
+
+        vec4 i = thisTexel(image);
+
+        vec3 col = vec3(0.);
+
+        float d  = 0.;
+        float d1 = SphereHit(origin, ray, sphere, radius);
+        float d2 = PlaneHit (origin, ray, vec3(0, 0, 0), vec3(0, -1, 0));
+        float d3 = TriangleHit(origin, ray, tris, d);
+
+        if (d1 > 0. && d1 < d2 && d1 < d3 && d1 > near && d1 < far){
+          vec3 p = origin + ray*d1;
+          vec3 normal = normalize(p-sphere);
+          float l = dot(normal, light)*.5 + .5;
+          col = vec3(.5, .5, 0)*l;
+          d = d1;
+        }
+        else if (d3 > 0. && d3 < d2 && d3 > near && d3 < far){
+          col = vec3(0, .5, .5);
+          d = d3;
+        }
+        else if (d2 > 0. && d2 > near && d2 < far){
+          vec3 p = (origin + ray*d2)/100.;
+          if (p.x < 0. && p.z < 0.) p.x -= 1.;
+          if (p.x > 0. && p.z > 0.) p.z += 1.;
+          ivec3 f = ivec3(p);
+          col = vec3((f.x+f.z)%2 == 0 ? .3 : 1.);
+          d = d2;
+        }
+
+        outColor = vec4(i.rgb+col, i.a+1.);
+      }
+      `
+    },{eye, dir:effectiveDir, orientation, distance, ...params});
+
+    outColor.setTo(avg).io(`o = vec4(i.rgb/i.a, 1.)`);
+    
+    if (showDiagram){
+      updateDiagram();
+      outColor.srcOver(diagram);
+    }
+    
+    outColor.blit();
+    mouseDiff = [0, 0];
+  })
+
+  //-- mouse updates --------------------------------------------------------
+    let mouse  = size.div(2);
+    let pmouse = size.div(2);
+    let down  = false;
+    let mouseDiff = [0, 0];
+
+    let locked = false;
+
+    onLeftDown  = evt => {
+      down = true;
+      if (locked){
+        document.exitPointerLock();
+        locked = false;
+      }
+    }
+    onRightDown = evt => {location.reload()}
+
+    onpointermove = evt => {
+      mouseDiff = [evt.movementX, -evt.movementY].div(100);
+
+      if (locked){
+        goalRotX += mouseDiff.x;
+        goalRotY += mouseDiff.y;
+        goalRotY = clamp(goalRotY, -pi2, pi2);
+      }
+    }
+
+    onpointerup = evt => {down = false;}
+
+    onWheel = evt => {
+      let amt = 1;
+      if (evt.deltaY < 0) amt = .9;
+      else amt = 1.1; 
+      setParams({camera:params.camera*amt})
+      reset();
+    };
+
+    let altDown = false;
+    let digit1Down = false;
+    let digit2Down = false;
+
+    let movement = [0, 0, 0];
+
+    onKeyDown = evt => {
+      console.log(evt);
+      if (evt === "F5")  location.reload();
+      if (evt === "ControlLeft"){
+        if (altDown){
+          mode = mode-1;
+          if (mode < 0) mode = modes.length-1;
+        }
+        else mode = (mode+1)%modes.length;
+        setParams({modes:modes[mode]})
+        reset();
+      }
+
+      if (evt === "Backquote"){
+        showDiagram ^= true;
+      }
+
+      if (evt === "Escape"){
+        document.exitPointerLock();
+        locked = false;
+      }
+
+      if (evt === "AltLeft") altDown   = true;
+      if (evt === "Digit1") digit1Down = true;
+      if (evt === "Digit2") digit2Down = true;
+
+      if (evt === "KeyW"     ) movement.z =  1;
+      if (evt === "KeyS"     ) movement.z = -1;
+      if (evt === "KeyA"     ) movement.x =  1;
+      if (evt === "KeyD"     ) movement.x = -1;
+      if (evt === "Space"    ) movement.y =  1;
+      if (evt === "ShiftLeft") movement.y = -1;
+    }
+
+    onKeyUp = evt => {
+      if (evt === "KeyW"     ) movement.z = 0;
+      if (evt === "KeyS"     ) movement.z = 0;
+      if (evt === "KeyA"     ) movement.x = 0;
+      if (evt === "KeyD"     ) movement.x = 0;
+      if (evt === "Space"    ) movement.y = 0;
+      if (evt === "ShiftLeft") movement.y = 0;
+    }
+
+</script>

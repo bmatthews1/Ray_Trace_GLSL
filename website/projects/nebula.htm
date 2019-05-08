@@ -1,0 +1,304 @@
+<script src="den.js/den.js"></script>
+<script src="ben.js/ben.js"></script>
+<script>
+  Den();
+  Ben();
+
+  let canvas = document.querySelector("canvas");
+  canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
+  document.exitPointerLock  = document.exitPointerLock  || document.mozExitPointerLock;
+  canvas.onclick = function() {
+    canvas.requestPointerLock();
+    locked = true;
+  };
+
+  let size     = [innerWidth, innerHeight]
+  let outColor = v4tex(size);
+  let avg      = v4tex(size);
+
+  let eye          = [0, 300, -1000];
+  let dir          = [0, 0, 1];
+  let effectiveDir = [0, 0, 1];
+  let orientation = 0;
+  let distance    = 300;
+  let fov         = 30;
+
+  let rotX = 0, goalRotX = 0;
+  let rotY = 0, goalRotY = 0;
+
+  let speed = 10;
+
+  let rotation;
+
+  let matrixRotate = function(mat, vec){
+    let rot = [
+      mat[0][0]*vec[0] + mat[0][1]*vec[1] + mat[0][2]*vec[2],
+      mat[1][0]*vec[0] + mat[1][1]*vec[1] + mat[1][2]*vec[2],
+      mat[2][0]*vec[0] + mat[2][1]*vec[1] + mat[2][2]*vec[2],
+    ]
+    return rot;
+  }
+
+  let getRotationMatrix = (xAngle, yAngle) => {
+    let rotX =  Matrix4.identity.rotate(yAngle, 1, 0, 0);
+    let rotY =  Matrix4.identity.rotate(xAngle, 0, 1, 0);
+    return rotX.times(rotY);
+  }
+
+  let updateVals = () =>{
+    let o = size.x/2;
+    let a = (params.fov*pi/180)/2
+    distance     = o/tan(a);
+
+
+    orientation  = params.rotation;
+    
+    rotX = lerp(rotX, goalRotX, .5);
+    rotY = lerp(rotY, goalRotY, .5);
+
+    rotation     = getRotationMatrix(rotX, rotY);
+    effectiveDir = matrixRotate(rotation, dir);
+  }
+
+  let reset = () => {
+      avg.clear();
+  }
+
+  addControls(
+    {name:"fov"     , min:30  , max:180   , val:167  , onChange:reset},
+    {name:"rotation", min:0   , max:6.28  , val:0    , onChange:reset ,alias:"roll"},
+  )
+  showControls();
+
+  autoLoop(() => {
+    updateVals();
+    let m = matrixRotate(rotation, movement);
+    eye = eye.plus(m.times(speed));
+
+    if (m.mag > 1e-4 || [rotX-goalRotX,rotY-goalRotY].mag > 1e-4) reset();
+
+    avg.run({
+      eye : uniform | vec3,
+      dir : uniform | vec3,
+      orientation : uniform | float,
+      distance    : uniform | float,
+
+      frag : `
+
+      //https://github.com/glslify/glsl-look-at/blob/gh-pages/index.glsl
+      mat3 calcLookAtMatrix(vec3 origin, vec3 target, float roll) {
+        vec3 rr = vec3(sin(roll), cos(roll), 0.0);
+        vec3 ww = normalize(target - origin);
+        vec3 uu = normalize(cross(ww, rr));
+        vec3 vv = normalize(cross(uu, ww));
+
+        return mat3(uu, vv, ww);
+      }
+
+      //  Classic Perlin 3D Noise 
+      //  by Stefan Gustavson
+      //
+      vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
+      vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
+      vec3 fade(vec3 t) {return t*t*t*(t*(t*6.0-15.0)+10.0);}
+
+      float noise(vec3 P){
+        vec3 Pi0 = floor(P); // Integer part for indexing
+        vec3 Pi1 = Pi0 + vec3(1.0); // Integer part + 1
+        Pi0 = mod(Pi0, 289.0);
+        Pi1 = mod(Pi1, 289.0);
+        vec3 Pf0 = fract(P); // Fractional part for interpolation
+        vec3 Pf1 = Pf0 - vec3(1.0); // Fractional part - 1.0
+        vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
+        vec4 iy = vec4(Pi0.yy, Pi1.yy);
+        vec4 iz0 = Pi0.zzzz;
+        vec4 iz1 = Pi1.zzzz;
+
+        vec4 ixy = permute(permute(ix) + iy);
+        vec4 ixy0 = permute(ixy + iz0);
+        vec4 ixy1 = permute(ixy + iz1);
+
+        vec4 gx0 = ixy0 / 7.0;
+        vec4 gy0 = fract(floor(gx0) / 7.0) - 0.5;
+        gx0 = fract(gx0);
+        vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
+        vec4 sz0 = step(gz0, vec4(0.0));
+        gx0 -= sz0 * (step(0.0, gx0) - 0.5);
+        gy0 -= sz0 * (step(0.0, gy0) - 0.5);
+
+        vec4 gx1 = ixy1 / 7.0;
+        vec4 gy1 = fract(floor(gx1) / 7.0) - 0.5;
+        gx1 = fract(gx1);
+        vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
+        vec4 sz1 = step(gz1, vec4(0.0));
+        gx1 -= sz1 * (step(0.0, gx1) - 0.5);
+        gy1 -= sz1 * (step(0.0, gy1) - 0.5);
+
+        vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
+        vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
+        vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
+        vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
+        vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
+        vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
+        vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
+        vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
+
+        vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
+        g000 *= norm0.x;
+        g010 *= norm0.y;
+        g100 *= norm0.z;
+        g110 *= norm0.w;
+        vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
+        g001 *= norm1.x;
+        g011 *= norm1.y;
+        g101 *= norm1.z;
+        g111 *= norm1.w;
+
+        float n000 = dot(g000, Pf0);
+        float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
+        float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
+        float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
+        float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
+        float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
+        float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
+        float n111 = dot(g111, Pf1);
+
+        vec3 fade_xyz = fade(Pf0);
+        vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
+        vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
+        float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x); 
+        return 2.2 * n_xyz;
+      }
+
+      float octave(vec3 p, float o){
+        float n = 0.;
+        for (float i = 1.; i < o; i += 1.){
+          n += noise(p*pow(2., i))/pow(2., i);
+        }
+        return n/2.;
+      }
+
+      void main(){
+        vec3 origin = eye;
+        vec2 offset = rand2();
+        vec3 ray    = normalize(vec3((pixel+offset)-res/2., distance));
+        mat3 lookat = calcLookAtMatrix(vec3(0), normalize(dir), orientation);
+        ray = lookat*ray;
+    
+        vec4 i = thisTexel(image);
+
+        vec3 pos = origin;
+
+        float step  = 4.;
+        float scale = .005;
+        float t     = 0.;
+
+        for (int i = 0; i < 200; i++){
+
+          pos += ray*step;
+          float d = length(pos);
+          
+          ray = mix(ray, normalize(pos),1./d);
+
+          if (d < 100.){
+            t = 0.;
+            break;
+          }
+
+          float n = octave(pos*scale, 5.);  
+          float n2 = noise(pos*.1)*-1. + ((pos.y)/10000.);
+          t += n < .01 - ((pos.y)/1000.) ? .05*abs(n) : 0.;
+            if (pow(n2, 50.)*sign(n2) > .99){
+                t = 1.;
+                break;
+            }
+        }
+
+        // Output to screen
+        outColor = vec4(i.rgb+vec3(t*.5, pow(t, 2.)*.7,t), i.a+1.);
+      }
+      `
+    },{eye, dir:effectiveDir, orientation, distance, ...params});
+
+    outColor.setTo(avg).io(`o = vec4(i.rgb/i.a, 1.)`);
+    outColor.blit();
+    mouseDiff = [0, 0];
+  })
+
+  //-- mouse updates --------------------------------------------------------
+    let mouse  = size.div(2);
+    let pmouse = size.div(2);
+    let down  = false;
+    let mouseDiff = [0, 0];
+
+    let locked = false;
+
+    onLeftDown  = evt => {down = true;}
+    onRightDown = evt => {location.reload()}
+
+    onpointermove = evt => {
+      mouseDiff = [evt.movementX, -evt.movementY].div(100);
+
+      if (locked){
+        goalRotX += mouseDiff.x;
+        goalRotY += mouseDiff.y;
+        goalRotY = clamp(goalRotY, -pi2, pi2);
+      }
+    }
+
+    onpointerup = evt => {down = false;}
+
+    onWheel = evt => {
+      let amt = 1;
+      if (evt.deltaY < 0) amt = .9;
+      else amt = 1.1; 
+      setParams({camera:params.camera*amt})
+      reset();
+    };
+
+    let altDown = false;
+    let digit1Down = false;
+    let digit2Down = false;
+
+    let movement = [0, 0, 0];
+
+    onKeyDown = evt => {
+      console.log(evt);
+      if (evt === "F5")  location.reload();
+      if (evt === "ControlLeft"){
+        if (altDown){
+          mode = mode-1;
+          if (mode < 0) mode = modes.length-1;
+        }
+        else mode = (mode+1)%modes.length;
+        setParams({modes:modes[mode]})
+        reset();
+      }
+
+      if (evt === "Escape"){
+        document.exitPointerLock();
+        locked = false;
+      }
+
+      if (evt === "AltLeft") altDown   = true;
+      if (evt === "Digit1") digit1Down = true;
+      if (evt === "Digit2") digit2Down = true;
+
+      if (evt === "KeyW"     ) movement.z =  1;
+      if (evt === "KeyS"     ) movement.z = -1;
+      if (evt === "KeyA"     ) movement.x =  1;
+      if (evt === "KeyD"     ) movement.x = -1;
+      if (evt === "Space"    ) movement.y =  1;
+      if (evt === "ShiftLeft") movement.y = -1;
+    }
+
+    onKeyUp = evt => {
+      if (evt === "KeyW"     ) movement.z = 0;
+      if (evt === "KeyS"     ) movement.z = 0;
+      if (evt === "KeyA"     ) movement.x = 0;
+      if (evt === "KeyD"     ) movement.x = 0;
+      if (evt === "Space"    ) movement.y = 0;
+      if (evt === "ShiftLeft") movement.y = 0;
+    }
+
+</script>

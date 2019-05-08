@@ -1,0 +1,649 @@
+<script src="den.js/den.js"></script>
+<script src="ben.js/ben.js"></script>
+<script src="shapes.js"></script>
+<script>
+  Den();
+  Ben();
+
+  //-- texture definitions --------------------------------------------------
+    let size      = [innerWidth, innerHeight];
+    let outColor  = v4tex(size);
+    let capture   = v4tex(size);
+    let buffer    = v4tex(size);
+    let noise     = v4tex(size);
+    let skybox    = imgtex("./media/environments/building.png");
+
+   //-- global parameters ----------------------------------------------------
+    let modes = ["sphere", "environment", "equation", "torus", "sierpinski", "shapes", "grid", "grid2", "apollonian", "noise"];
+    let mode  = 4;
+    let prevVals = modes.map(i => new Object());
+
+    let sampling = 0;
+    let sampleTypes = ["normal","random","grid","jittered","sunflower"];
+
+    let rotation = Matrix4.identity;
+    let camera_lerp = .05;
+
+  //-- header ---------------------------------------------------------------
+    let header = `
+      mat4 rotationMatrix(vec3 axis, float angle)
+      {
+        axis = normalize(axis);
+        float s = sin(angle);
+        float c = cos(angle);
+        float oc = 1.0 - c;
+        
+        return mat4(oc*axis.x*axis.x+c,        oc*axis.x*axis.y-axis.z*s, oc*axis.z*axis.x+axis.y*s, 0.0,
+                    oc*axis.x*axis.y+axis.z*s, oc*axis.y*axis.y+c,        oc*axis.y*axis.z-axis.x*s, 0.0,
+                    oc*axis.z*axis.x-axis.y*s, oc*axis.y*axis.z+axis.x*s, oc*axis.z*axis.z+c,        0.0,
+                    0.0, 0.0, 0.0, 1.0);
+      }
+
+      float dot2( in vec2 v ) { return dot(v,v); }
+      float dot2( in vec3 v ) { return dot(v,v); }
+
+      vec3 quadraticSolve(float a, float b, float c){
+        float delta = (b*b - a*c*4.);
+
+        if      (delta >  0.) return vec3(2., (-b + sqrt(delta))/2.*a, (-b - sqrt(delta))/2.*a);
+        else if (delta == 0.) return vec3(1., -b/(a*2.), 0.);
+        else return vec3(0);
+      }
+
+      float eqSolve(vec3 o, vec3 d, int s){
+        float z = 0.;
+        vec3 d2 = d;
+        for (int i = 0;  i < s; i++){
+          float n = o.z/d2.z;
+            vec3 p = o+d2*n;
+            z = (1.+sin(p.x*p.x*p.y*p.y))/2.;
+            p.z = z;
+            d2 = normalize(p-o);
+        }
+        return z;
+      }
+
+      float inTorus(vec3 p, float r1, float r2){
+        vec3 p2 = pow(p, vec3(2.));
+        float r1_2 = pow(r1, 2.);
+        return pow((p2.x + p2.y + p2.z + r1_2 - pow(r2,2.)),2.) - 4.*r1_2*(p2.x + p2.y);
+      }
+
+      float mandleBulbDE(vec3 w, int iterations) {
+        float dr = 1.0;
+        float r = 0.0;
+        float m = dot(w,w);
+        for (int i = 0; i < iterations ; i++) {
+          // extract polar coordinates
+          float wr = sqrt(dot(w,w));
+          float wo = acos(w.y/wr);
+          float wi = atan(w.x,w.z);
+
+          // scale and rotate the point
+          wr = pow( wr, 8.0 );
+          wo = wo * 8.0;
+          wi = wi * 8.0;
+
+          // convert back to cartesian coordinates
+          w.x = wr * sin(wo)*sin(wi);
+          w.y = wr * cos(wo);
+          w.z = wr * sin(wo)*cos(wi);
+
+          dr = 8.0*pow(sqrt(m),7.0)*dr + 1.0;
+          r = length(w);
+        }
+        return r;
+      }
+
+      float bulb (vec3 pos) {
+
+        float power = 8.0;
+
+        vec3 z = pos;
+        float dr = 1.0;
+        float r  = 0.0;
+        int iterations = 5;
+        for (int i=0;i<iterations;++i) {
+          r = length(z);
+          if (r>2.0) break;
+          float theta = acos(z.z/r);
+          float a     = atan(z.y,z.x);
+          dr = pow(r,power-1.0)*power*dr+1.0;
+          float zr = pow(r,power);
+          theta = theta*power+tick*0.0001*float(i+1-iterations);
+          a     = a*power;
+          z = zr*vec3(sin(theta)*cos(a),sin(a)*sin(theta),cos(theta));
+          z += pos;
+        } return 0.5*log(r)*r/dr;
+      }
+
+      float apollonianDE(vec3 p, float e){
+        p-=vec3(0.43636,0.85454,-0.14546);
+        return (abs(length(p.xy)*p.z)-e) / sqrt(dot(p,p)+abs(e));
+      }
+
+      float apollonianDE2(vec3 p){
+        vec3 mcol=vec3(-1.0);
+        const vec3 CSize = vec3(0.63248,0.78632,0.875);
+        float DEfactor=1.;
+        for(int i=0;i<5;i++){
+          p=2.*clamp(p, -CSize, CSize)-p;
+          float k=max(0.70968/dot(p,p),1.);
+          p*=k;DEfactor*=k;
+        }
+        if(mcol.r>=0.0)mcol+=abs(p);
+        float rxy=length(p.xy);
+        return max(rxy-0.92784, abs(rxy*p.z) / length(p))/DEfactor;
+      }
+
+      //http://blog.hvidtfeldts.net/index.php/2011/08/distance-estimated-3d-fractals-iii-folding-space/
+      float DE(vec3 z, int iterations, float scale)
+      {
+        float r;
+        int n = 0;
+        while (n < iterations) {
+           if(z.x+z.y<0.) z.xy = -z.yx; // fold 1
+           if(z.x+z.z<0.) z.xz = -z.zx; // fold 2
+           if(z.y+z.z<0.) z.zy = -z.yz; // fold 3  
+           z = z*scale - 300.*(scale-1.0);
+           n++;
+        }
+        return (length(z) ) * pow(scale, -float(n));
+      }
+
+      //  Classic Perlin 3D Noise 
+      //  by Stefan Gustavson
+      //
+      vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
+      vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
+      vec3 fade(vec3 t) {return t*t*t*(t*(t*6.0-15.0)+10.0);}
+
+      float cnoise(vec3 P){
+        vec3 Pi0 = floor(P); // Integer part for indexing
+        vec3 Pi1 = Pi0 + vec3(1.0); // Integer part + 1
+        Pi0 = mod(Pi0, 289.0);
+        Pi1 = mod(Pi1, 289.0);
+        vec3 Pf0 = fract(P); // Fractional part for interpolation
+        vec3 Pf1 = Pf0 - vec3(1.0); // Fractional part - 1.0
+        vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
+        vec4 iy = vec4(Pi0.yy, Pi1.yy);
+        vec4 iz0 = Pi0.zzzz;
+        vec4 iz1 = Pi1.zzzz;
+
+        vec4 ixy = permute(permute(ix) + iy);
+        vec4 ixy0 = permute(ixy + iz0);
+        vec4 ixy1 = permute(ixy + iz1);
+
+        vec4 gx0 = ixy0 / 7.0;
+        vec4 gy0 = fract(floor(gx0) / 7.0) - 0.5;
+        gx0 = fract(gx0);
+        vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
+        vec4 sz0 = step(gz0, vec4(0.0));
+        gx0 -= sz0 * (step(0.0, gx0) - 0.5);
+        gy0 -= sz0 * (step(0.0, gy0) - 0.5);
+
+        vec4 gx1 = ixy1 / 7.0;
+        vec4 gy1 = fract(floor(gx1) / 7.0) - 0.5;
+        gx1 = fract(gx1);
+        vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
+        vec4 sz1 = step(gz1, vec4(0.0));
+        gx1 -= sz1 * (step(0.0, gx1) - 0.5);
+        gy1 -= sz1 * (step(0.0, gy1) - 0.5);
+
+        vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
+        vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
+        vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
+        vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
+        vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
+        vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
+        vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
+        vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
+
+        vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
+        g000 *= norm0.x;
+        g010 *= norm0.y;
+        g100 *= norm0.z;
+        g110 *= norm0.w;
+        vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
+        g001 *= norm1.x;
+        g011 *= norm1.y;
+        g101 *= norm1.z;
+        g111 *= norm1.w;
+
+        float n000 = dot(g000, Pf0);
+        float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
+        float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
+        float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
+        float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
+        float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
+        float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
+        float n111 = dot(g111, Pf1);
+
+        vec3 fade_xyz = fade(Pf0);
+        vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
+        vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
+        float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x); 
+        return 2.2 * n_xyz;
+      }
+    `
+
+  //-- fragments ------------------------------------------------------------
+
+    let main_header = `
+      float n   = thisTexel(noise).x*(1./.75);
+      vec4  i   = thisTexel(image);
+      vec3  col = vec3(0);
+
+      float s = sampleGrid*sampleGrid;
+      float x = mod(tick, sampleGrid)/sampleGrid;
+      float y = floor(mod(tick, s)/sampleGrid)/sampleGrid;
+      float t = mod(tick, s)/s;
+
+      vec2 offset = vec2(0);
+      switch (sampling){
+        case 0 : offset = vec2(0); break;
+        case 1 : offset = rand2(); break;
+        case 2 : offset = vec2(x, y); break;
+        case 3 : offset = vec2(x, y) + rand2()/sampleGrid; break;
+        case 4 : offset = cosSin(t,t)/2.; break; 
+      }
+
+      if (n > speed){
+        vec3 origin = (rotation*vec4(pixel + offset - res/2., camera*ratio, 0.)).xyz;
+        vec3 cam    = (rotation*vec4(0., 0., camera, 0.)).xyz;
+        vec3 ray    = normalize(origin - cam);
+        vec3 light  = vec3(1);
+    `
+
+    let main_footer = `
+        i.a += 1.;
+        outColor = vec4(i.rgb + col.rgb, i.a);
+      }
+      else outColor = i;
+    `
+
+  //-- pre calculations -----------------------------------------------------
+    let getRotationMatrix = (xAngle, yAngle) => {
+      let rotX =  Matrix4.identity.rotate(-yAngle, 1, 0, 0);
+      let rotY =  Matrix4.identity.rotate(-xAngle, 0, 1, 0);
+      return rotX.times(rotY);
+    }
+
+    let updateRotation = (xAngle, yAngle) => {
+      rotation = rotation.times(getRotationMatrix(mouseDiff.x, -mouseDiff.y));
+      mouseDiff = mouseDiff.lerpTo([0, 0], camera_lerp);
+      reset();
+    }
+
+    let reset = () => {
+      buffer.clear();
+    }
+
+  //-- rendering ------------------------------------------------------------
+    let renderFrag = (inner_frag) => {
+      buffer.run({
+        skybox     : sampler | vec4,
+        noise      : sampler | vec4,
+        camera     : uniform | float,
+        ratio      : uniform | float,
+        radius     : uniform | float,
+        m          : uniform | int,
+        sampling   : uniform | int,
+        sampleGrid : uniform | float,
+        speed      : uniform | float,
+        rotation   : uniform | mat4,
+        width      : uniform | float,
+
+        frag : 
+        `
+        ${header}
+        ${distance_estimators}
+        ${distance_operators}
+
+        void main(){
+          ${main_header}
+          ${inner_frag}
+          ${main_footer}
+        }`
+      },{skybox, noise, rotation, m:mode, sampling, ...params})
+    }
+
+    let render = () => {
+      noise.noise({scale:1, quality:1, speed:10});
+      
+      switch(mode){
+        case 0 : renderSphere();      break;
+        case 1 : renderEnvironment(); break;
+        case 2 : renderEquation();    break;
+        case 3 : renderTorus();       break;
+        case 4 : renderSierpinski();  break;
+        case 5 : renderShapes();      break;
+        case 6 : renderGrid();        break;
+        case 7 : renderLines();       break;
+        case 8 : renderApollonian();  break;
+        case 9 : renderNoise();       break;
+      }
+    }
+
+  //-- modes ----------------------------------------------------------------
+    let renderSphere = () => {
+      renderFrag(`
+        vec3 col = vec3(.5);
+        float A = dot(ray,    ray);
+        float B = dot(origin, ray)*2.;
+        float C = dot(origin, origin) - radius*radius;
+
+        vec3 qs = quadraticSolve(A, B, C);
+
+        if (qs.x > 0.){
+          vec3 p1 = origin + ray*qs.y;
+          p1 = (p1+1.);
+          vec3 p2 = origin + ray*qs.z;
+          col += vec3(p1/radius);
+        }
+      `)
+    }
+
+    let renderEnvironment = () => {
+      renderFrag(`
+        float u = atan2(ray.z, ray.x)/tau - .5;
+        float v = ray.y/2. + .5;
+        vec3 col = texture(skybox, vec2(u, v)).rgb;
+
+        vec3 p   = vec3(0);
+
+        float A = dot(ray,    ray);
+        float B = dot(origin, ray)*2.;
+        float C = dot(origin, origin) - radius*radius;
+
+        vec3 qs = quadraticSolve(A, B, C);
+
+        if (qs.x > 0.){
+          vec3 normal = normalize(origin + ray*qs.z);
+          vec3 reflection = ray - 2.*dot(ray, normal)*normal;
+
+          u = atan2(reflection.z, reflection.x)/tau - .5;
+          v = reflection.y/2. + .5;
+          col = mix(vec3(.5),texture(skybox, vec2(u, v)).rgb, .9);
+        }    
+      `)
+    }
+
+    let renderEquation = () => {
+      renderFrag(`
+        origin = vec3(pixel + offset - res/2., camera)/50.;
+        ray    = normalize(origin);
+        vec3 col = vec3(eqSolve(origin, ray, 1));
+      `)
+    }
+
+    let renderGrid = () => {
+      renderFrag(`
+        float y = ray.y;
+        float d = -(origin.y+10000.)/y;
+
+        if (d > 0.){
+          vec3 p = (origin+ray*d)/10000.;
+          col = vec3(mod(p.x, 2.) < 1. ^^ mod(p.z, 2.) < 1.);
+        }
+      `)
+    }
+
+    let renderLines = () => {
+      renderFrag(`
+        origin  = vec3(pixel + offset - res/2., camera)/50.;
+        origin  = origin.xzy;
+        origin.y = -origin.y;
+        ray     = normalize(origin);
+
+        float y = ray.y;
+        float d = -(origin.y+1000000.)/y;
+
+        if (d > 0.){
+          vec3 p = (origin+ray*d)/10000.;
+          col = vec3(mod(p.x, 2.) < width/9. || mod(p.z, 2.) < width/9.);
+        }
+      `);
+    }
+
+    //TODO add a way to link renders and options in an addRender(name, frag) method
+
+    let renderTorus = () => {
+      renderFrag(`
+        float d = sdTorus(origin, vec2(radius, radius/2.));
+        float amt = d;
+        float steps = 0.;
+
+        float u = atan2(ray.z, ray.x)/tau - .5;
+        float v = ray.y/2. + .5;
+        vec3 col = texture(skybox, vec2(u, v)).rgb;
+
+        while (d > 1.){
+          steps++;
+          d = sdTorus(origin + ray*amt, vec2(radius, radius/2.));
+          amt += d;
+          if (steps > 50.) break;
+        }
+        if (steps < 50.){
+          vec3 p = origin + ray*amt;
+          float a = atan2(p.z, p.x);
+
+          vec3 normal = normalize(p - vec3(cos(a), 0., sin(a))*radius);
+          vec3 reflection = ray - 2.*dot(ray, normal)*normal;
+
+          u = atan2(reflection.z, reflection.x)/tau - .5;
+          v = reflection.y/2. + .5;
+          col = mix(vec3(.5),texture(skybox, vec2(u, v)).rgb, .9);
+        }
+      `)
+    }
+
+    let renderSierpinski = () => {
+      renderFrag(`
+        origin = cam;
+        float m = 1500.;
+        int iterations = 20;
+        float scale = 2.;
+
+        float d = DE(mod(origin, vec3(m))-vec3(m/2.), iterations, scale);
+        float amt = d;
+        float steps = 0.;
+
+        while (d > .1){
+          steps++;
+          d = DE(mod(origin + ray*amt, vec3(m))-vec3(m/2.), iterations, scale);
+          amt += d;
+          if (steps > 50.) break;          
+        }
+        if (steps < 50.){
+          col = vec3(1. - pow(steps/50., 2.));
+        }
+      `)
+    }
+
+    let renderShapes = () => {
+      reset();
+      renderFrag(`
+        float d = 1.;
+        float amt = d;
+        float steps = 0.;
+        
+        int t = int(time/2.)%6;
+
+        while (d > .1){
+          steps++;
+          vec3 p = (origin + ray*amt);
+
+          switch(t){
+            case 0 : d = sdSphere(p, radius); break;
+            case 1 : d = sdBox(p, vec3(radius*.5)); break;
+            case 2 : d = sdRoundBox(p, vec3(radius*.5), radius/4.); break;
+            case 3 : d = sdTorus(p, vec2(radius, radius/2.)); break;
+            case 4 : d = sdCylinder(p, vec2(radius)); break;
+            case 5 : d = sdCone(p, radius, radius); break;
+          }
+
+          d = opNOT(sdCylinder(p, vec2(radius/2., radius*2.)), d);
+
+          amt += d;
+          if (steps > 50.) break;          
+        }
+        if (steps < 50.){
+          col = vec3(1. - steps/50.);
+          // float h = (origin + ray*amt).x;
+          // h = mod(h/100., 1.);
+          // col = hsv(h, 1., 1.).rgb;
+        }
+      `)
+    }
+
+    let renderApollonian = () => {
+      renderFrag(`
+        float e = width*100.;
+        // origin = cam;
+        // float d = bulb(origin/1000.);
+        float d = apollonianDE2(origin/1000.);
+        // float d = apollonianDE(origin/1000., e);
+        float amt = d;
+        float steps = 0.;
+
+        while (d > .001){
+          steps++;
+          // d = bulb((origin + ray*amt)/1000.);
+          d = apollonianDE2((origin + ray*amt)/1000.);
+          // d = apollonianDE((origin + ray*amt)/1000., e);
+          amt += d;
+          if (steps > 100.) break;
+        }
+        // if (steps < 100.){
+          col = vec3(1. - steps/100., amt/10. , 1.);
+        // }
+      `)
+    }
+
+    let renderNoise = () => {
+      renderFrag(`
+        float d = cnoise(origin/1000.);
+        float amt = d;
+        float steps = 0.;
+
+        while (d > .01){
+          steps++;
+          float f =
+          d = cnoise((origin + ray*amt)/1000.) + sdSphere(origin + ray*amt, 100.);
+          amt += d;
+          if (steps > 100.) break;
+        }
+
+        col = vec3(1. - steps/100.);
+      `)
+    }
+
+  //-- controls -------------------------------------------------------------
+    addControls(
+      {onChange(){reset()},name:"camera", alias:"camera distance", max:2000, val:1000},
+      {onChange(){reset()},name:"ratio" , alias:"camera plane"},
+      {onChange(){reset()},name:"radius", max:1000, val:300},
+      {onChange(){reset()},name:"speed" , alias:"random thresh", val:0, max:.74},
+      {onChange(){reset()},name:"sampleGrid", alias:"sub samples", val:5, max:20, step:1},
+      {onChange(){reset()},name:"width" , alias:"line width"   , val:.5, max:5},
+
+      // {name:"modes", alias:"mode",options:modes, onChange:function(){
+      //   prevVals[mode] = {...params, rotation:rotation.times(Matrix4.identity)};
+      //   mode = modes.indexOf(params.modes);
+      //   setParams(prevVals[mode])
+      //   if (prevVals[mode].rotation) rotation = prevVals[mode].rotation;
+      //   reset();
+      // }},
+
+      {name:"samples", alias:"sample type", options:sampleTypes, onChange:function(){
+        sampling = sampleTypes.indexOf(params.samples);
+        reset();
+      }}
+    ); showControls();
+
+    let mouse  = size.div(2);
+    let pmouse = size.div(2);
+    let mouseDiff = [0, 0];
+    let down   = false;
+
+  //-- mouse updates --------------------------------------------------------
+    onpointerdown = evt => {down = true;}
+
+    onpointermove = evt => {
+      pmouse = [...mouse];
+      mouse  = [evt.clientX, size.y - evt.clientY];
+      if (down){
+        mouseDiff = pmouse.minus(mouse).div(100);
+      }
+    }
+
+    onpointerup = evt => {down = false;}
+
+    onWheel = evt => {
+      let amt = 1;
+      if (evt.deltaY < 0) amt = .9;
+      else amt = 1.1; 
+      setParams({camera:params.camera*amt})
+      reset();
+    };
+
+    let altDown = false;
+    let digit1Down = false;
+    let digit2Down = false;
+    onKeyDown = evt => {
+      if (evt === "F5")  location.reload();
+      if (evt === "Space") {
+        render();
+        capture.setTo(buffer).io(`o = vec4(i.rgb/i.a, 1.)`);
+      }
+      if (evt === "ControlLeft"){
+        if (altDown){
+          mode = mode-1;
+          if (mode < 0) mode = modes.length-1;
+        }
+        else mode = (mode+1)%modes.length;
+        setParams({modes:modes[mode]})
+        reset();
+      }
+
+      if (evt === "AltLeft") altDown   = true;
+      if (evt === "Digit1") digit1Down = true;
+      if (evt === "Digit2") digit2Down = true;
+    }
+
+    onKeyUp = evt => {
+      if (evt === "AltLeft") altDown   = false;
+      if (evt === "Digit1") digit1Down = false;
+      if (evt === "Digit2") digit2Down = false;
+    }
+
+  //-- main loop ------------------------------------------------------------
+    loops.push(() => {
+      render();
+      
+      outColor.setTo(buffer).io(`o = vec4(i.rgb/i.a, 1.)`);
+      if (mouseDiff.mag > .01) updateRotation();
+
+      if (digit1Down) outColor.setTo(capture);
+      if (digit2Down){
+        outColor.run({
+          capture : sampler | vec4,
+          main : `
+            vec3 col = vec3(.5);
+            float x = mod(pixel.x*2., res.x);
+            float y = (pixel.y - res.y/4.)*2.;
+
+            if (y >= 0. && y <= res.y){
+              if (pixel.x < res.x/2.) col = getPixel(image, vec2(x, y)).rgb;
+              else col = getPixel(capture, vec2(x, y)).rgb;
+            }
+
+            outColor = vec4(col, 1.);
+          `
+        },{capture})
+      }
+      outColor.blit();
+    })
+
+</script>

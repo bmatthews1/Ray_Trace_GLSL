@@ -9,7 +9,7 @@
         http://bugman123.com/Fractals/
         https://www.deviantart.com/theli-at/gallery/
         
-      ☐ apollonian gasket
+      ✔ apollonian gasket @done (19-05-08 01:50)
         http://blancosilva.github.io/post/2011/01/30/apollonian-gaskets.html
 
       ☐ psuedo klienian
@@ -45,10 +45,10 @@
      ☐ normals
        ☐ look into derivative normals
 
-     ☐ implement basic translations + rotations + scaleing of shapes
-       ☐ normalize base shapes to [1, 1, 1] with a [0, 0, 0] origin
+     ✔ implement basic translations + rotations + scaling of shapes @done (19-05-08 01:50)
+       ✔ normalize base shapes to [1, 1, 1] with a [0, 0, 0] origin @done (19-05-08 01:50)
 
-     ☐ Actual camera (FOV, near, far, ect)
+     ✔ Actual camera (FOV, near, far, ect) @done (19-05-08 01:50)
         - origin
         - direction
         - near
@@ -87,8 +87,8 @@
 
      ☐ optics
        ☐ refraction
-       ☐ reflection
-       ☐ optical density (bending towards/away from norm)
+       ✔ reflection @done (19-05-08 01:51)
+       ✔ optical density (bending towards/away from norm) @done (19-05-08 01:51)
        ☐ camera focals
        ☐ isotropic / anisotropic filtering
      
